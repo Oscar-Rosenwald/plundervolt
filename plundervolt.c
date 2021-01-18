@@ -1,7 +1,8 @@
 /**
  * @brief Library for undervolting; Version 1 - Extra Simple
  */
-/* Always run after "sudo modprobe msr" */
+/* Always compile with "-pthread".
+Always run after "sudo modprobe msr" */
 
 #define _GNU_SOURCE
 #include <fcntl.h>
@@ -20,17 +21,19 @@
 
 int in_loop; // Is the function running in a loop?
 int num_threads; // 0 threads acts as a "false" boolean.
-long int current_voltage; // In mV
+uint64_t current_voltage; // In mV
 int using_undervolting; // The user may not wish to undervolt every time they run the function.
 int fd; // TODO What is this number exactly?
 
 enum undervolting_type {software, hardware}; // Software for this version of the code
+typedef void (*function_pointer) (va_list);
 struct undervolting_specification {
-    long int start_voltage; // In mV
-    long int end_voltage; // In mV
+    uint64_t start_voltage; // In mV
+    uint64_t end_voltage; // In mV
     int step; // How many mV we jump by.
               // We may not use steps (later versions); 0 = "false"
-    void* (*function)(); // Function to be undervolted.
+    // TODO The following should be something like "function_pointer"
+    void* (*function)(va_list); // Function to be undervolted.
 } u_spec;
 
 /**
@@ -43,7 +46,7 @@ int msr_accessible_check() {
     fd = open("/dev/cpu/0/msr", O_RDWR);
     if (fd == -1) { // msr file failed to open
         printf("Could not open /dev/cpu/0/msr\n\
-            Run sudo modprobe msr first, or run this function with sudo priviliges.\n");
+            Run sudo modprobe msr first, and run this function with sudo priviliges.\n");
         return 0; // msr NOT accessible
     }
     return 1;
@@ -95,8 +98,8 @@ void set_voltage(uint64_t value) {
  * 
  * @return void* Whatever the function returns, return a pointer to it.
  */
-void* run_function() {
-    return u_spec.function();
+void* run_function(va_list arguments) {
+    return u_spec.function(arguments);
 }
 
 /**
@@ -132,7 +135,7 @@ void* undervolt() {
     int milli_seconds=2000000; // TODO Why this number?
     printf("Started undervolting.\nCurrent voltage: %ld\nDesired voltage: %ld\n\n", current_voltage, u_spec.end_voltage);
     
-    while(u_spec.end_voltage > current_voltage) {
+    while(u_spec.end_voltage < current_voltage) {
         printf("Before change:\nCurrent undervolate = %ld\nDesired voltage: %ld\n\n", current_voltage, u_spec.end_voltage);
         current_voltage--;
 
@@ -153,12 +156,12 @@ void* undervolt() {
 
 // TODO This whole function - reset voltage
 void reset_voltage() {
-    // set_voltage()
+    set_voltage(compute_msr_value(0, 0));
+    set_voltage(compute_msr_value(0, 2));
+    printf("Voltage reset to %ld\nCurrent voltage: %f\n", u_spec.start_voltage, 1000 * read_voltage());
 }
 
-int main() {
-    u_spec.function = random_function;
-    u_spec.end_voltage = 600;
+int main(int argc, char *(*argv)) {
 
     // The following needs access to cpu/0/msr.
     // Check it is accessible.
@@ -167,10 +170,53 @@ int main() {
     }
     u_spec.start_voltage = 1000 * read_voltage();
     current_voltage = 1000 * read_voltage();
+    u_spec.end_voltage = current_voltage - 10;
+    
+    // TODO The following is for testing purposes only. It will be deleted in the final version.
+    if (argc > 1) { // We have command line arguments
+    // First command - sudo
+    // Second command - ./<file>.out
+    // Third command - arguments
+        if (strcmp(argv[1] + 2, "reset") == 0) {
+            set_voltage(compute_msr_value(0, 0));
+            set_voltage(compute_msr_value(0, 2));
+            printf("Only reset voltage to SAME: %f\n", 1000 * read_voltage());
+        } else if (strcmp(argv[1] + 2, "read") == 0) {
+            printf("Current voltage: %f\n", 1000 * read_voltage());    
+        } else if (strcmp(argv[1] + 2, "set") == 0) {
+            if (argc < 3) {
+                printf("Wrong number of arguments. You set --set, "
+                "which is supposed to be followed by a number.\n");
+            } else {
+                int64_t third_argument;
+                third_argument = strtol(argv[2], NULL, 10);
+                if (third_argument == 0) {
+                    printf("The third argument must be a number: %s.\n", argv[2]);
+                } else {
+                    printf("Voltage: %f\nVoltage to: %ld\nTest: %ld\n\n", 1000 * read_voltage(), third_argument, strtol("700", NULL, 10));
+    
+                    sleep(2); // Wait for 2 seconds
+                    set_voltage(compute_msr_value(third_argument, 0));
+                    set_voltage(compute_msr_value(third_argument, 2));
+                    printf("Voltage set to: %ld\nVoltage: %f\n", third_argument, 1000 * read_voltage());
+                }
+            }
+        } else {
+            printf("Wrong arguments: ");
+            for (int i = 1; i < argc; i++) {
+                printf("%s  ", argv[i]);
+            }
+            printf("\n");
+        }
+        
+        return 1;
+    }
+    u_spec.function = random_function;
 
     // Check if read_voltage() performs correctly.
     if (u_spec.start_voltage != current_voltage) {
-        printf("ERROR: u_spec.start_voltage != current_voltage!\n");
+        printf("ERROR: u_spec.start_voltage != current_voltage!\nstart = %ld\ncurrent = %ld\n", u_spec.start_voltage, current_voltage);
+        return -1;
     } else {
         printf("u_spec.start_voltage and current_voltage are SAME: %ld\n", current_voltage);
     }
@@ -178,6 +224,7 @@ int main() {
     // Create threads.
     // One is for running the function, the other for undervolting.
     pthread_t function_thread;
+    // va_list arguments;
     pthread_create(&function_thread, NULL, random_function, NULL);
     pthread_t undervolting_thread;
     pthread_create(&undervolting_thread, NULL, undervolt, NULL);
@@ -185,6 +232,7 @@ int main() {
     // Wait until both threads finish
     pthread_join(undervolting_thread, NULL);
     pthread_join(function_thread, NULL);
+    reset_voltage();
 
     // run_function();
     printf("Finished.\n");
