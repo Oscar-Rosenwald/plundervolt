@@ -27,13 +27,16 @@ int fd; // TODO What is this number exactly?
 
 enum undervolting_type {software, hardware}; // Software for this version of the code
 typedef void (*function_pointer) (va_list);
+typedef struct arguments_structure {
+    int first;
+    int second;
+} arguments_structure;
 struct undervolting_specification {
     uint64_t start_voltage; // In mV
     uint64_t end_voltage; // In mV
     int step; // How many mV we jump by.
               // We may not use steps (later versions); 0 = "false"
-    // TODO The following should be something like "function_pointer"
-    void* (*function)(va_list); // Function to be undervolted.
+    void* (* function)(void *);
 } u_spec;
 
 /**
@@ -98,8 +101,8 @@ void set_voltage(uint64_t value) {
  * 
  * @return void* Whatever the function returns, return a pointer to it.
  */
-void* run_function(va_list arguments) {
-    return u_spec.function(arguments);
+void* run_function(void* arguments) {
+    return (u_spec.function)(arguments);
 }
 
 /**
@@ -109,8 +112,10 @@ void* run_function(va_list arguments) {
  * later on, when I implement working with the return of that function, there is something to work with.
  * In other words, it's just preparation for later.
  */
-void* random_function() {
+void* random_function(void *arguments_struc) {
     printf("Entered random function.\n");
+    arguments_structure *arguments = (arguments_structure *) arguments_struc;
+    printf("%d\n", arguments->first);
     while (current_voltage != u_spec.end_voltage) {
         ; // Noop
     }
@@ -154,9 +159,9 @@ void* undervolt() {
     return NULL; // Must return something, as pthread_create requires a void* return value.
 }
 
-// TODO This whole function - reset voltage
 void reset_voltage() {
     set_voltage(compute_msr_value(0, 0));
+    sleep(3);
     set_voltage(compute_msr_value(0, 2));
     printf("Voltage reset to %ld\nCurrent voltage: %f\n", u_spec.start_voltage, 1000 * read_voltage());
 }
@@ -224,8 +229,10 @@ int main(int argc, char *(*argv)) {
     // Create threads.
     // One is for running the function, the other for undervolting.
     pthread_t function_thread;
-    // va_list arguments;
-    pthread_create(&function_thread, NULL, random_function, NULL);
+    arguments_structure arguments;
+    arguments.first = 1;
+    arguments.second = 2;
+    pthread_create(&function_thread, NULL, run_function, &arguments);
     pthread_t undervolting_thread;
     pthread_create(&undervolting_thread, NULL, undervolt, NULL);
     
