@@ -9,6 +9,9 @@ struct undervolting_specification {
     uint64_t end_voltage; // In mV
     int step; // How many mV we jump by.
               // We may not use steps (later versions); 0 = "false"
+    int loop; // If the function is to be repeated until fault (provided in some other version),
+              // loop will = 1.
+    int threads; // Number of threads to use. (0 is same as 1)
     void (* function)(void *);
     void * arguments; // Pointer to the structure of arguments for the function above.
 } u_spec;

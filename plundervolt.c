@@ -1,5 +1,5 @@
 /**
- * @brief Library for undervolting; Version 2 - Library stage
+ * @brief Library for undervolting; Version 3 - Threads
  */
 /* Always compile with "-pthread".
 Always run after "sudo modprobe msr" */
@@ -58,7 +58,7 @@ void set_voltage(uint64_t value) {
     pwrite(fd, &value, sizeof(value), offset);
 }
 
-void* run_function(void* arguments) {
+void* run_function_loop (void* arguments) {
     while (current_voltage != u_spec.end_voltage) {
         (u_spec.function)(arguments);
     }
@@ -66,16 +66,11 @@ void* run_function(void* arguments) {
     return NULL;
 }
 
-// /**
-//  * @brief A dummy function used for testing.
-//  * This simulates the function to be undervolted, which will be passed by the user.
-//  * It must return a void pointer, as the function in u_spec has a void* return type. This is so that
-//  * later on, when I implement working with the return of that function, there is something to work with.
-//  * In other words, it's just preparation for later.
-//  */
-// void random_function(void *arguments_struc) {
-//     arguments_structure *arguments = (arguments_structure *) arguments_struc;
-// }
+void* run_function (void * arguments) {
+    (u_spec.function)(arguments);
+    printf("Random function finished.");
+    return NULL;
+}
 
 void* undervolt() {
     cpu_set_t cpuset;
@@ -127,28 +122,27 @@ int plundervolt () {
         return -1;
     }
     
-    // u_spec.start_voltage = 1000 * read_voltage();
     current_voltage = 1000 * read_voltage();
-    // u_spec.end_voltage = current_voltage - 5;
-
-    // Check if read_voltage() performs correctly.
-    /* if (u_spec.start_voltage != current_voltage) {
-        printf("ERROR: u_spec.start_voltage != current_voltage!\nstart = %ld\ncurrent = %ld\n", u_spec.start_voltage, current_voltage);
-        return -1;
-    } else {
-        printf("u_spec.start_voltage and current_voltage are SAME: %ld\n", current_voltage);
-    } */
 
     // Create threads
     // One is for running the function, the other for undervolting.
-    pthread_t function_thread;
-    pthread_create(&function_thread, NULL, run_function, u_spec.arguments);
+    if (u_spec.threads < 1) u_spec.threads = 1;
+    pthread_t* function_thread = malloc(sizeof(pthread_t) * u_spec.threads);
+    for (int i = 0; i < u_spec.threads; i++) {
+        if (u_spec.loop) {
+            pthread_create(&function_thread[i], NULL, run_function_loop, u_spec.arguments);
+        } else {
+            pthread_create(&function_thread[i], NULL, run_function, u_spec.arguments);
+        }
+    }
     pthread_t undervolting_thread;
     pthread_create(&undervolting_thread, NULL, undervolt, NULL);
 
     // Wait until both threads finish
     pthread_join(undervolting_thread, NULL);
-    pthread_join(function_thread, NULL);
+    for (int i = 0; i < u_spec.threads; i++) {
+        pthread_join(function_thread[i], NULL);
+    }
     reset_voltage();
 
     // run_function();

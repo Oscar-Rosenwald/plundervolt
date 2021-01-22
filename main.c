@@ -14,6 +14,8 @@ int main () {
     arguments.first = 1;
     arguments.second = 2;
 
+    u_spec.loop = 1;
+    u_spec.threads = 1;
     u_spec.function = function;
     u_spec.arguments = (void *) &arguments;
     u_spec.start_voltage = 700;

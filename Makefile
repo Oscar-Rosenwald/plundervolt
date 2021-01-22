@@ -1,4 +1,4 @@
-all: main
+all: main clean
 
 main: main.o plundervolt.o
 	gcc -o main main.o plundervolt.o -pthread -lm
