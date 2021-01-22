@@ -62,7 +62,7 @@ void* run_function_loop (void* arguments) {
     while (current_voltage != u_spec.end_voltage) {
         (u_spec.function)(arguments);
     }
-    printf("Random function finished.\n");
+    printf("Random loop function finished.\n");
     return NULL;
 }
 
@@ -111,8 +111,9 @@ void* undervolt() {
 void reset_voltage() {
     set_voltage(compute_msr_value(0, 0));
     set_voltage(compute_msr_value(0, 2));
+    printf("Resetting voltage.\n");
     sleep(3);
-    printf("Resetting voltage.\nCurrent voltage: %f\n", 1000 * read_voltage());
+    printf("Current voltage: %f\n", 1000 * read_voltage());
 }
 
 int plundervolt () {
