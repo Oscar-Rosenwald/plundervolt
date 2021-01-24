@@ -19,10 +19,9 @@ Always run after "sudo modprobe msr" */
 #include "plundervolt.h"
 
 int in_loop; // Is the function running in a loop?
-int num_threads; // 0 threads acts as a "false" boolean.
-uint64_t current_voltage; // In mV
 int using_undervolting; // The user may not wish to undervolt every time they run the function.
 int fd; // TODO What is this number exactly?
+int initialised = 0;
 
 int msr_accessible_check() {
     fd = open("/dev/cpu/0/msr", O_RDWR);
@@ -59,16 +58,18 @@ void set_voltage(uint64_t value) {
 }
 
 void* run_function_loop (void* arguments) {
-    while (current_voltage != u_spec.end_voltage) {
+    while ((u_spec.integrated_loop_check)
+            ? !loop_finished
+            : !(u_spec.stop_loop)(u_spec.loop_check_arguments)) {
         (u_spec.function)(arguments);
     }
-    printf("Random loop function finished.\n");
+    printf("Loop function finished.\n");
     return NULL;
 }
 
 void* run_function (void * arguments) {
     (u_spec.function)(arguments);
-    printf("Random function finished.");
+    printf("Function finished.");
     return NULL;
 }
 
@@ -116,6 +117,41 @@ void reset_voltage() {
     printf("Current voltage: %f\n", 1000 * read_voltage());
 }
 
+void initialise_undervolting () {
+    u_spec.function = NULL;
+    u_spec.stop_loop = NULL;
+    u_spec.arguments = NULL;
+    u_spec.loop_check_arguments = NULL;
+    u_spec.loop = 1;
+    u_spec.threads = 1;
+    u_spec.integrated_loop_check = 0;
+
+    initialised = 1;
+}
+
+int faulty_undervolting_specification() {
+    if (!initialised) {
+        printf("ERROR: u_spec not initialised properly. Use initialise_undervolting.\n");
+        return 1;
+    }
+    int error = 0;
+    if (u_spec.undervolt) {
+        if (u_spec.start_voltage <= u_spec.end_voltage) {
+            printf("ERROR: start voltage >= end_voltage.\n");
+            error = 1;
+        }
+    }
+    if (u_spec.function == NULL) {
+        printf("ERROR: No undervolting function provided.\n");
+        error = 1;
+    }
+    if (u_spec.loop && !u_spec.integrated_loop_check && u_spec.stop_loop == NULL) {
+        printf("ERROR: Running loop and no integrated check, but no loop check function provided.\n");
+        error = 1;
+    }
+    return error;
+}
+
 int plundervolt () {
     // The following needs access to cpu/0/msr.
     // Check it is accessible.
@@ -124,6 +160,10 @@ int plundervolt () {
     }
     
     current_voltage = 1000 * read_voltage();
+
+    if (faulty_undervolting_specification()) {
+        return -1;
+    }
 
     // Create threads
     // One is for running the function, the other for undervolting.
@@ -136,58 +176,19 @@ int plundervolt () {
             pthread_create(&function_thread[i], NULL, run_function, u_spec.arguments);
         }
     }
-    pthread_t undervolting_thread;
-    pthread_create(&undervolting_thread, NULL, undervolt, NULL);
+    if (u_spec.undervolt) {
+        pthread_t undervolting_thread;
+        pthread_create(&undervolting_thread, NULL, undervolt, NULL);
 
-    // Wait until both threads finish
-    pthread_join(undervolting_thread, NULL);
+        // Wait until both threads finish
+        pthread_join(undervolting_thread, NULL);
+    }
     for (int i = 0; i < u_spec.threads; i++) {
         pthread_join(function_thread[i], NULL);
+        printf("Thread %d joined\n", i);
     }
     reset_voltage();
 
-    // run_function();
     printf("Finished.\n");
     return 0;
 }
-
-// int main(int argc, char *(*argv)) {    
-//     // TODO The following is for testing purposes only. It will be deleted in the final version.
-//     if (argc > 1) { // We have command line arguments
-//     // First command - sudo
-//     // Second command - ./<file>.out
-//     // Third command - arguments
-//         if (strcmp(argv[1] + 2, "reset") == 0) {
-//             set_voltage(compute_msr_value(0, 0));
-//             set_voltage(compute_msr_value(0, 2));
-//             printf("Only reset voltage to SAME: %f\n", 1000 * read_voltage());
-//         } else if (strcmp(argv[1] + 2, "read") == 0) {
-//             printf("Current voltage: %f\n", 1000 * read_voltage());    
-//         } else if (strcmp(argv[1] + 2, "set") == 0) {
-//             if (argc < 3) {
-//                 printf("Wrong number of arguments. You set --set, "
-//                 "which is supposed to be followed by a number.\n");
-//             } else {
-//                 int64_t third_argument;
-//                 third_argument = strtol(argv[2], NULL, 10);
-//                 if (third_argument == 0) {
-//                     printf("The third argument must be a number: %s.\n", argv[2]);
-//                 } else {
-//                     printf("Voltage: %f\nVoltage to: %ld\nTest: %ld\n\n", 1000 * read_voltage(), third_argument, strtol("700", NULL, 10));  
-//                     sleep(2); // Wait for 2 seconds
-//                     set_voltage(compute_msr_value(third_argument, 0));
-//                     set_voltage(compute_msr_value(third_argument, 2));
-//                     printf("Voltage set to: %ld\nVoltage: %f\n", third_argument, 1000 * read_voltage());
-//                 }
-//             }
-//         } else {
-//             printf("Wrong arguments: ");
-//             for (int i = 1; i < argc; i++) {
-//                 printf("%s  ", argv[i]);
-//             }
-//             printf("\n");
-//         }       
-//         return 1;
-//     }
-//     u_spec.function = random_function;
-//}

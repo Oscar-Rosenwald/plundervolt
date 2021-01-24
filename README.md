@@ -1,0 +1,1 @@
+Always compile with "-pthread"
