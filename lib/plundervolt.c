@@ -22,7 +22,7 @@ int fd = 0;
 int initialised = 0;
 plundervolt_specification_t u_spec;
 uint64_t current_voltage;
-int loop_finished;
+int loop_finished = 0;
 
 /**
  * @brief Run function given in u_spec only once.
@@ -130,24 +130,20 @@ void* plundervolt_apply_undervolting() {
     }
 
     current_voltage = u_spec.start_undervoltage;
-    printf("Started undervolting.\nCurrent voltage: %ld\nDesired voltage: %ld\n\n",
-            current_voltage, u_spec.end_undervoltage);
     
     while(u_spec.end_undervoltage < current_voltage) {
         if ((u_spec.integrated_loop_check)
             ? loop_finished
             : (u_spec.stop_loop)(u_spec.loop_check_arguments)) {
                 break;
+                printf("Stop loop\n");
             }
-        printf("Before change:\nCurrent undervolate = %ld\nDesired voltage: %ld\n\n",
-                current_voltage, u_spec.end_undervoltage);
         current_voltage -= u_spec.step;
 
         plundervolt_set_undervolting(plundervolt_compute_msr_value(current_voltage, 0));
         plundervolt_set_undervolting(plundervolt_compute_msr_value(current_voltage, 2));
 
-        printf("After change:\nCurrent voltage: %ld\nDesired voltage: %ld\n\n",
-                current_voltage, u_spec.end_undervoltage);
+        printf("Undervolting: %ld\n", current_voltage);
 
         clock_t time = clock();
         while ((clock() < time+u_spec.wait_time)) {

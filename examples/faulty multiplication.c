@@ -16,7 +16,15 @@
 #define result num_1 * num_2
 
 int check(uint64_t res) {
-    return res != result;
+    uint64_t temp_res_1, temp_res_2;
+    int iterations = 0;
+    int max_iter = 1000;
+    do {
+        iterations++;
+        temp_res_1 = num_1 * num_2;
+        temp_res_2 = num_1 * num_2;
+    } while (temp_res_1 == temp_res_2 && iterations < max_iter);
+    return temp_res_1 != temp_res_2;
 }
 
 void multiply() {
@@ -29,8 +37,8 @@ void multiply() {
 int main() {
     plundervolt_specification_t spec = plundervolt_init();
     spec.function = multiply;
-    spec.start_undervoltage = -150;
-    spec.end_undervoltage = -300;
+    spec.start_undervoltage = -180;
+    spec.end_undervoltage = -200;
     spec.integrated_loop_check = 1;
     spec.threads = 4;
     spec.undervolt = 1;
