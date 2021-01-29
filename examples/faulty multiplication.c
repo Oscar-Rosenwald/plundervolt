@@ -43,10 +43,10 @@ void multiply() {
 int main() {
     spec = plundervolt_init();
     spec.function = multiply;
-    spec.start_undervoltage = -150;
+    spec.start_undervoltage = -170;
     spec.end_undervoltage = -210;
     spec.integrated_loop_check = 1;
-    spec.threads = 1;
+    spec.threads = 3;
     spec.undervolt = 1;
     printf("Plundervolt specification initialised.\n");
 

@@ -21,7 +21,7 @@ Always run after "sudo modprobe msr" */
 int fd = 0;
 int initialised = 0;
 plundervolt_specification_t u_spec;
-uint64_t current_voltage;
+uint64_t current_undervoltage;
 int loop_finished = 0;
 
 /**
@@ -53,7 +53,7 @@ int faulty_undervolting_specification();
 int msr_accessible_check();
 
 uint64_t plundervolt_get_current_undervoltage() {
-    return current_voltage;
+    return current_undervoltage;
 }
 
 void plundervolt_set_loop_finished() {
@@ -96,7 +96,7 @@ double plundervolt_read_voltage() {
 // TODO plundervolt_set_voltage(value);
 void plundervolt_set_undervolting(uint64_t value) {
     // 0x150 is the offset of the Plane Index buffer in msr (see Plundervolt paper).
-    __off_t offset = 0x150;
+    off_t offset = 0x150;
     pwrite(fd, &value, sizeof(value), offset);
 }
 
@@ -138,22 +138,20 @@ void* plundervolt_apply_undervolting() {
         printf("Pthread set affinity error\n.");
     }
 
-    current_voltage = u_spec.start_undervoltage;
+    current_undervoltage = u_spec.start_undervoltage;
 
-    while(u_spec.end_undervoltage < current_voltage && !loop_finished) {
-        current_voltage -= u_spec.step;
+    while(u_spec.end_undervoltage <= current_undervoltage && !loop_finished) {
+        printf("Undervolting: %ld\n", current_undervoltage);
 
-        plundervolt_set_undervolting(plundervolt_compute_msr_value(current_voltage, 0));
-        plundervolt_set_undervolting(plundervolt_compute_msr_value(current_voltage, 2));
-
-        printf("Undervolting: %ld\n", current_voltage);
+        plundervolt_set_undervolting(plundervolt_compute_msr_value(current_undervoltage, 0));
+        plundervolt_set_undervolting(plundervolt_compute_msr_value(current_undervoltage, 2));
 
         clock_t time = clock();
-        while ((clock() < time+u_spec.wait_time)) {
+        while ((clock() < time+u_spec.wait_time && !loop_finished)) {
             ; // Noop
-            // Just waiting
-            // -> Will wait for 2 000 000 milliseconds before going further
         }
+
+        current_undervoltage -= u_spec.step;
     }
     printf("Undervolting finished.\n\n");
     plundervolt_set_loop_finished();
@@ -245,8 +243,6 @@ int plundervolt_run() {
     if (error_check) { // If msr_file != 0, it is an error code.
         return error_check;
     }
-    
-    current_voltage = 1000 * plundervolt_read_voltage();
 
     error_check = faulty_undervolting_specification();
     if (error_check) {
@@ -271,7 +267,7 @@ int plundervolt_run() {
 
         // Wait until both threads finish
         pthread_join(undervolting_thread, NULL);
-        printf("Undervolting thread joined.\n");
+        printf("\nUndervolting thread joined.\n");
     }
     printf("Joining function threads.\n");
     for (int i = 0; i < u_spec.threads; i++) {
