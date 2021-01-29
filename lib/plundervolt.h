@@ -25,15 +25,19 @@ typedef enum {
  */
 typedef struct plundervolt_specification_t {
     /**
-     * @brief Voltage to start on. In mV.
+     * @brief Undervoltage to begin on.
+     * For example: start_undervolting = -100 will start undervolting -100 mV,
+     * not at -100mV.
      * 
      */
-    uint64_t start_undervolting;
+    uint64_t start_undervoltage;
     /**
-     * @brief Voltage to end on. In mV.
+     * @brief Lowest acceptable undervoltage.
+     * Must be smaller than start_undervoltage. It does not mean the absolute voltage of the CPU,
+     * but the ammount of undervolting.
      * 
      */
-    uint64_t end_undervolting;
+    uint64_t end_undervoltage;
     /**
      * @brief How many mV we jump by.
      * We may not use steps (later versions); 0 = "false"
@@ -81,6 +85,12 @@ typedef struct plundervolt_specification_t {
      * 
      */
     int undervolt;
+    /**
+     * @brief Time for which the undervolting halts on each iteration. It is a rough estimate in
+     * software undervolting. In ms.
+     * 
+     */
+    int wait_time;
 } plundervolt_specification_t;
 
 /**
@@ -89,7 +99,7 @@ typedef struct plundervolt_specification_t {
 uint64_t plundervolt_get_current_voltage();
 
 /**
- * @brief When the conditions are met, this function stops the undervolting loop.
+ * @brief This function stops the undervolting loop.
  */
 void plundervolt_set_loop_finished();
 
@@ -107,7 +117,7 @@ plundervolt_specification_t plundervolt_init();
  * @param spec Specification to be set to.
  * @return int 0 if no error, PLUNDERVOLT_NOT_INITIALISED_ERROR otherwise.
  */
-int plundervolt_set_specificaton(plundervolt_specification_t);
+int plundervolt_set_specification(plundervolt_specification_t);
 
 /**
  * @brief Compute the value which will be written to cpu/0/msr.
@@ -126,17 +136,17 @@ uint64_t plundervolt_compute_msr_value(int64_t, uint64_t);
 double plundervolt_read_voltage();
 
 /**
- * @brief Set new voltage. The parameter should be the result of plundervolt_compute_msr_value().
+ * @brief Set new undervoltage. The parameter should be the result of plundervolt_compute_msr_value().
  * 
- * @param value uint64_t value of the new voltage.
+ * @param value uint64_t value of the new undervoltage.
  */
 void plundervolt_set_undervolting(uint64_t);
 
 /**
- * @brief Performs the undervolting according to specification in u_spec.
+ * @brief Performs the undervolting according to specification.
  * It ought to run in a separate thread
  * 
- * @return void* Must return something, as pthread_create requires a void* return value.
+ * @return void* Must return something, as pthread_create requires a void* return value. Returns NULL.
  */
 void* plundervolt_apply_undervolting();
 
@@ -147,10 +157,10 @@ void* plundervolt_apply_undervolting();
 void plundervolt_reset_voltage();
 
 /**
- * @brief The main function of the undervolting library. It uses u_specs to create threads
- * and run the given function with the given arguments, while undervolting (according to specifications).
+ * @brief The main function of the undervolting library. It creates threads, runs given functions,
+ * possibly in a loop, and checks the conditions for stopping the loops, all according to specifications.
  * 
- * @return int Negative, if fault, 0 otherwise.
+ * @return int 0 if OK, error code if otherwise.
  */
 int plundervolt_run();
 
@@ -159,7 +169,7 @@ int plundervolt_run();
  * It closes open files, and resets voltage.
  * 
  */
-void plundervolt_clearnup();
+void plundervolt_cleanup();
 
 /**
  * @brief Prints the appropriate message to the plundervolt error passed as argument.

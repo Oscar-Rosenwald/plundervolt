@@ -18,7 +18,7 @@ Always run after "sudo modprobe msr" */
 #include <x86intrin.h>
 #include "plundervolt.h"
 
-int fd = NULL;
+int fd = 0;
 int initialised = 0;
 plundervolt_specification_t u_spec;
 uint64_t current_voltage;
@@ -62,7 +62,7 @@ void plundervolt_set_loop_finished() {
 
 int msr_accessible_check() {
     // Only open the file if it has not been open before.
-    if (fd = NULL) {
+    if (fd == 0) {
         fd = open("/dev/cpu/0/msr", O_RDWR);
     }
     if (fd == -1) { // msr file failed to open
@@ -129,24 +129,28 @@ void* plundervolt_apply_undervolting() {
         printf("Pthread set affinity error\n.");
     }
 
-    current_voltage = u_spec.start_undervolting;
-    int milli_seconds=2000000; // TODO Why this number?
+    current_voltage = u_spec.start_undervoltage;
     printf("Started undervolting.\nCurrent voltage: %ld\nDesired voltage: %ld\n\n",
-            current_voltage, u_spec.end_undervolting);
+            current_voltage, u_spec.end_undervoltage);
     
-    while(u_spec.end_undervolting < current_voltage) {
+    while(u_spec.end_undervoltage < current_voltage) {
+        if ((u_spec.integrated_loop_check)
+            ? loop_finished
+            : (u_spec.stop_loop)(u_spec.loop_check_arguments)) {
+                break;
+            }
         printf("Before change:\nCurrent undervolate = %ld\nDesired voltage: %ld\n\n",
-                current_voltage, u_spec.end_undervolting);
+                current_voltage, u_spec.end_undervoltage);
         current_voltage -= u_spec.step;
 
         plundervolt_set_undervolting(plundervolt_compute_msr_value(current_voltage, 0));
         plundervolt_set_undervolting(plundervolt_compute_msr_value(current_voltage, 2));
 
         printf("After change:\nCurrent voltage: %ld\nDesired voltage: %ld\n\n",
-                current_voltage, u_spec.end_undervolting);
+                current_voltage, u_spec.end_undervoltage);
 
         clock_t time = clock();
-        while ((clock() < time+milli_seconds)) {
+        while ((clock() < time+u_spec.wait_time)) {
             ; // Noop
             // Just waiting
             // -> Will wait for 2 000 000 milliseconds before going further
@@ -169,13 +173,14 @@ plundervolt_specification_t plundervolt_init () {
     spec.step = 1;
     spec.loop = 1;
     spec.threads = 1;
-    spec.start_undervolting = 0;
-    spec.end_undervolting = 0;
+    spec.start_undervoltage = 0;
+    spec.end_undervoltage = 0;
     spec.function = NULL;
     spec.integrated_loop_check = 0;
     spec.stop_loop = NULL;
     spec.loop_check_arguments = NULL;
     spec.undervolt = 1;
+    spec.wait_time = 2000000;
 
     initialised = 1;
 
@@ -195,7 +200,7 @@ int faulty_undervolting_specification() {
         return PLUNDERVOLT_NOT_INITIALISED_ERROR;
     }
     if (u_spec.undervolt) {
-        if (u_spec.start_undervolting <= u_spec.end_undervolting) {
+        if (u_spec.start_undervoltage <= u_spec.end_undervoltage) {
             return PLUNDERVOLT_RANGE_ERROR;
         }
     }
@@ -212,22 +217,22 @@ void plundervolt_print_error(plundervolt_error_t error) {
     switch (error)
     {
     case PLUNDERVOLT_RANGE_ERROR:
-        printf(stderr, "Start undervolting is smaller than end undervolting.\n");
+        fprintf(stderr, "Start undervolting is smaller than end undervolting.\n");
         break;
     case PLUNDERVOLT_CANNOT_ACCESS_MSR_ERROR:
-        printf(stderr, "Could not open /dev/cpu/0/msr\n\
+        fprintf(stderr, "Could not open /dev/cpu/0/msr\n\
             Run sudo modprobe msr first, and run this function with sudo priviliges.\n");
         break;
     case PLUNDERVOLT_NO_FUNCTION_ERROR:
-        printf(stderr, "No function to undervolt on is provided.\n");
+        fprintf(stderr, "No function to undervolt on is provided.\n");
         break;
     case PLUNDERVOLT_NO_LOOP_CHECK_ERROR:
-        printf(stderr, "No function to stop undervolting is provided, and integrated_loop_check is set to 0.\n");
+        fprintf(stderr, "No function to stop undervolting is provided, and integrated_loop_check is set to 0.\n");
         break;
     case PLUNDERVOLT_NOT_INITIALISED_ERROR:
-        printf(stderr, "Plundervolt specification was not initialised properly.\n");
+        fprintf(stderr, "Plundervolt specification was not initialised properly.\n");
     default:
-        printf(stderr, "Generic error occured.\n");
+        fprintf(stderr, "Generic error occured.\n");
         break;
     }
 }
@@ -235,7 +240,7 @@ void plundervolt_print_error(plundervolt_error_t error) {
 int plundervolt_run() {
     // The following needs access to cpu/0/msr.
     // Check it is accessible.
-    int error_check = msr_accessible_check();
+    plundervolt_error_t error_check = msr_accessible_check();
     if (error_check) { // If msr_file != 0, it is an error code.
         return error_check;
     }

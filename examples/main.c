@@ -4,14 +4,15 @@ typedef struct arguments_structure {
     int first;
     int second;
 } arguments_structure;
+plundervolt_specification_t spec;
 
 int loop_check(void * arg) {
-    return plundervolt_get_current_voltage == u_spec.end_voltage;
+    return plundervolt_get_current_voltage() == spec.end_undervoltage;
 }
 
 void function (void* argument_list) {
     arguments_structure *args = (arguments_structure*) argument_list;
-    printf("1: %d, 2: %d\n", args->first, args->second);
+    // printf("1: %d, 2: %d\n", args->first, args->second);
     // plundervolt_set_loop_finished();
 }
 
@@ -20,13 +21,13 @@ int main () {
     arguments.first = 1;
     arguments.second = 2;
 
-    plundervolt_specification_t spec = plundervolt_init();
+    spec = plundervolt_init();
     spec.loop = 1;
     spec.threads = 2;
     spec.function = function;
     spec.arguments = (void *) &arguments;
-    spec.start_undervolting = -100;
-    spec.end_undervolting = -102;
+    spec.start_undervoltage = -100;
+    spec.end_undervoltage = -105;
     spec.integrated_loop_check = 0;
     spec.stop_loop = loop_check;
     spec.loop_check_arguments = NULL;
@@ -37,5 +38,9 @@ int main () {
         plundervolt_print_error(error_maybe);
     }
 
-    return plundervolt_run();
+    error_maybe = plundervolt_run();
+    if (error_maybe) {
+        plundervolt_print_error(error_maybe);
+    }
+    plundervolt_cleanup();
 }
