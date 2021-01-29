@@ -96,7 +96,7 @@ typedef struct plundervolt_specification_t {
 /**
  * @return uint64_t Current voltage in mV.
  */
-uint64_t plundervolt_get_current_voltage();
+uint64_t plundervolt_get_current_undervoltage();
 
 /**
  * @brief This function stops the undervolting loop.

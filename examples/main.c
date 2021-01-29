@@ -7,7 +7,7 @@ typedef struct arguments_structure {
 plundervolt_specification_t spec;
 
 int loop_check(void * arg) {
-    return plundervolt_get_current_voltage() == spec.end_undervoltage;
+    return plundervolt_get_current_undervoltage() == spec.end_undervoltage;
 }
 
 void function (void* argument_list) {

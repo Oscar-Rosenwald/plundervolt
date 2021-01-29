@@ -52,7 +52,7 @@ int faulty_undervolting_specification();
  */
 int msr_accessible_check();
 
-uint64_t plundervolt_get_current_voltage() {
+uint64_t plundervolt_get_current_undervoltage() {
     return current_voltage;
 }
 
@@ -101,9 +101,18 @@ void plundervolt_set_undervolting(uint64_t value) {
 }
 
 void* run_function_loop (void* arguments) {
-    while ((u_spec.integrated_loop_check)
-            ? !loop_finished
-            : !(u_spec.stop_loop)(u_spec.loop_check_arguments)) {
+    // while (!loop_finished &&
+    //         (u_spec.integrated_loop_check)
+    //         ? !loop_finished
+    //         : !(u_spec.stop_loop)(u_spec.loop_check_arguments)) {
+    while (true) {
+        if (loop_finished) {
+            break;
+        }
+        if (!u_spec.integrated_loop_check &&
+            (u_spec.stop_loop)(u_spec.loop_check_arguments)) {
+                break;
+        }
         (u_spec.function)(arguments);
     }
     printf("Loop function finished.\n");
@@ -130,14 +139,8 @@ void* plundervolt_apply_undervolting() {
     }
 
     current_voltage = u_spec.start_undervoltage;
-    
-    while(u_spec.end_undervoltage < current_voltage) {
-        if ((u_spec.integrated_loop_check)
-            ? loop_finished
-            : (u_spec.stop_loop)(u_spec.loop_check_arguments)) {
-                break;
-                printf("Stop loop\n");
-            }
+
+    while(u_spec.end_undervoltage < current_voltage && !loop_finished) {
         current_voltage -= u_spec.step;
 
         plundervolt_set_undervolting(plundervolt_compute_msr_value(current_voltage, 0));
@@ -152,13 +155,15 @@ void* plundervolt_apply_undervolting() {
             // -> Will wait for 2 000 000 milliseconds before going further
         }
     }
+    printf("Undervolting finished.\n\n");
+    plundervolt_set_loop_finished();
     return NULL; // Must return something, as pthread_create requires a void* return value.
 }
 
 void plundervolt_reset_voltage() {
     plundervolt_set_undervolting(plundervolt_compute_msr_value(0, 0));
     plundervolt_set_undervolting(plundervolt_compute_msr_value(0, 2));
-    printf("Resetting voltage.\n");
+    printf("Resetting voltage...\n");
     sleep(3);
     printf("Current voltage: %f\n", 1000 * plundervolt_read_voltage());
 }
@@ -262,16 +267,19 @@ int plundervolt_run() {
     if (u_spec.undervolt) {
         pthread_t undervolting_thread;
         pthread_create(&undervolting_thread, NULL, plundervolt_apply_undervolting, NULL);
+        printf("Undervolting:\n");
 
         // Wait until both threads finish
         pthread_join(undervolting_thread, NULL);
+        printf("Undervolting thread joined.\n");
     }
+    printf("Joining function threads.\n");
     for (int i = 0; i < u_spec.threads; i++) {
         pthread_join(function_thread[i], NULL);
         printf("Thread %d joined\n", i);
     }
 
-    printf("Finished plundervolt run.\n");
+    printf("\nFinished plundervolt run.\n");
     return 0;
 }
 
