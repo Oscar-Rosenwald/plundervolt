@@ -22,7 +22,7 @@ int fd = 0;
 int initialised = 0;
 plundervolt_specification_t u_spec;
 uint64_t current_undervoltage;
-int loop_finished = 0;
+int loop_finished;
 
 /**
  * @brief Run function given in u_spec only once.
@@ -33,7 +33,7 @@ void* run_function(void *);
 /**
  * @brief Run function given in u_spec in a loop. If u_spec.integrated_loop_check = 1,
  * stop the loop when loop_finished = 1. When u_spec.integrated_loop_check = 0,
- * stop loop when u_spec.stop_loop return 1.
+ * stop loop when u_spec.stop_loop return 1 and stop the undervolting process.
  * 
  * @return void* Whatever the function returns, return a pointer to it.
  */
@@ -101,27 +101,22 @@ void plundervolt_set_undervolting(uint64_t value) {
 }
 
 void* run_function_loop (void* arguments) {
-    // while (!loop_finished &&
-    //         (u_spec.integrated_loop_check)
-    //         ? !loop_finished
-    //         : !(u_spec.stop_loop)(u_spec.loop_check_arguments)) {
     while (true) {
-        if (loop_finished) {
+        if (loop_finished){
             break;
         }
         if (!u_spec.integrated_loop_check &&
             (u_spec.stop_loop)(u_spec.loop_check_arguments)) {
+                plundervolt_set_loop_finished();
                 break;
         }
         (u_spec.function)(arguments);
     }
-    printf("Loop function finished.\n");
     return NULL;
 }
 
 void* run_function (void * arguments) {
     (u_spec.function)(arguments);
-    printf("Function finished.");
     return NULL;
 }
 
@@ -147,7 +142,7 @@ void* plundervolt_apply_undervolting() {
         plundervolt_set_undervolting(plundervolt_compute_msr_value(current_undervoltage, 2));
 
         clock_t time = clock();
-        while ((clock() < time+u_spec.wait_time && !loop_finished)) {
+        while ((clock() < time + u_spec.wait_time) && !loop_finished) {
             ; // Noop
         }
 
@@ -179,7 +174,7 @@ plundervolt_specification_t plundervolt_init () {
     spec.stop_loop = NULL;
     spec.loop_check_arguments = NULL;
     spec.undervolt = 1;
-    spec.wait_time = 2000000;
+    spec.wait_time = 4000000;
 
     initialised = 1;
 
@@ -249,6 +244,8 @@ int plundervolt_run() {
         return error_check;
     }
 
+    loop_finished = 0;
+
     // Create threads
     // One is for running the function, the other for undervolting.
     if (u_spec.threads < 1) u_spec.threads = 1;
@@ -280,8 +277,10 @@ int plundervolt_run() {
 }
 
 void plundervolt_cleanup() {
-    plundervolt_reset_voltage();
-    close(fd);
+    if (u_spec.undervolt) {
+        plundervolt_reset_voltage();
+    }
+        close(fd);
 
     printf("Cleaned up.\n");
 }

@@ -2,3 +2,5 @@
 main
 *.swp
 *.so
+*msr
+*faulty multiplication

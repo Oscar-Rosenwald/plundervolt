@@ -23,7 +23,7 @@ int main () {
 
     spec = plundervolt_init();
     spec.loop = 1;
-    spec.threads = 2;
+    spec.threads = 4;
     spec.function = function;
     spec.arguments = (void *) &arguments;
     spec.start_undervoltage = -100;
