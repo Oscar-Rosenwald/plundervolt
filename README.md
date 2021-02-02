@@ -3,16 +3,16 @@ This library is a continuation of ideas proposed in other papers, mainly that of
 
 `plundervolt.h` provides a range of functions which may be useful to your code. You are able to:
 
-  - Run a function parallel to undervolting.
-  - Run that function in a loop.
-  - Provide your specification of when the loop should stop.
-  - Specify how low the undervolting goes.
-  - Run your function in as many threads as you desire.
-  - Read the current voltage of the CPU.
-  - Set a one-time undervolting value and reset the voltage later.
-  - Perform *Hardware* or *Software* undervolting (the former is still to be implemented at this point).
-  - Run your function (with thread support) in loop or as it is, with arguments specified by you (see later for [passing argument](#Passing-Arguments)), while undervolting according to your wishes in a separate thread, and checking on every function iteration for your condition (unless your function checks for it already), all that with a simple function call and a little specification maintenance.
-  - Probably something I didn't think of as well.
+  * Run a function parallel to undervolting.
+  * Run that function in a loop.
+  * Provide your specification of when the loop should stop.
+  * Specify how low the undervolting goes.
+  * Run your function in as many threads as you desire.
+  * Read the current voltage of the CPU.
+  * Set a one-time undervolting value and reset the voltage later.
+  * Perform *Hardware* or *Software* undervolting (the former is still to be implemented at this point).
+  * Run your function (with thread support) in loop or as it is, with arguments specified by you (see later for [passing arguments](#Passing-Arguments)), while undervolting according to your wishes in a separate thread, and checking on every function iteration for your condition (unless your function checks for it already), all that with a simple function call and a little specification maintenance.
+  * Probably something I didn't think of as well.
   
 # Usage #
 The library includes all of its dependencies, so you only need to include it and you are good to go.
@@ -43,6 +43,16 @@ The specification holds:
 The library will check you have the essential specification right and alerts you if there is a problem. The function `plundervolt_print_error()` is provided, which translates the error code returned to a print statement and you can see what is wrong.
 
 Both `plundervolt_set_specification()` and `plundervolt_run()` can return an error code, or return 0 if everything is OK.
+
+## Passing Arguments ##
+
+When using `plundervolt_run()`, arguments can be passed to two functions in the specification: `void (* function)` and `int (* stop_loop)`. Both take a void pointer as input.
+
+If you wish to pass anything, you must set `* arguments` and `* loop_check_arguments` respectively. They are void pointers, so anything you pass must be cast to (void *) first. The functions must then unpack these pointers and work with what is inside. The library has no functionality for doing so.
+
+Should you need to pass more arguments than one, create a structure and pass the pointer to *it*.
+
+This approach ensures you can change the values of the arguments without changing the specification. If arguments are provided (if not, they are set to NULL), they are passed on every iteration of the loop, or once if loop = 0.
 
 ## Cleanup ##
 
