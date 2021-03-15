@@ -78,6 +78,7 @@ int main() {
                       // for all the iterations of the multiplication to take place.
     spec.undervolt = 1; // We do not wish to run this function alone, but undervolt in the process.
     spec.loop = 1; // The function is to be called in a loop.
+    spec.u_type = software; // We want to undervolt softward-wise
     printf("Plundervolt specification initialised.\n");
 
     // We must take care of the possible errors during initialisation.

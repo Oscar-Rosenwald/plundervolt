@@ -246,32 +246,39 @@ int plundervolt_run() {
 
     loop_finished = 0;
 
-    // Create threads
-    // One is for running the function, the other for undervolting.
-    if (u_spec.threads < 1) u_spec.threads = 1;
-    pthread_t* function_thread = malloc(sizeof(pthread_t) * u_spec.threads);
-    for (int i = 0; i < u_spec.threads; i++) {
-        if (u_spec.loop) {
-            pthread_create(&function_thread[i], NULL, run_function_loop, u_spec.arguments);
-        } else {
-            pthread_create(&function_thread[i], NULL, run_function, u_spec.arguments);
-        }
-    }
-    if (u_spec.undervolt) {
-        pthread_t undervolting_thread;
-        pthread_create(&undervolting_thread, NULL, plundervolt_apply_undervolting, NULL);
-        printf("Undervolting:\n");
+    if (u_spec.u_type == software) {
+        // SOFTWARE UNDERVOLTING
 
-        // Wait until both threads finish
-        pthread_join(undervolting_thread, NULL);
-        printf("\nUndervolting thread joined.\n");
-    }
-    printf("Joining function threads.\n");
-    for (int i = 0; i < u_spec.threads; i++) {
+        // Create threads
+        // One is for running the function, the other for undervolting.
+        if (u_spec.threads < 1) u_spec.threads = 1;
+        pthread_t* function_thread = malloc(sizeof(pthread_t) * u_spec.threads);
+        for (int i = 0; i < u_spec.threads; i++) {
+            if (u_spec.loop) {
+                pthread_create(&function_thread[i], NULL, run_function_loop, u_spec.arguments);
+            } else {
+                pthread_create(&function_thread[i], NULL, run_function, u_spec.arguments);
+            }
+        }
+        if (u_spec.undervolt) {
+            pthread_t undervolting_thread;
+            pthread_create(&undervolting_thread, NULL, plundervolt_apply_undervolting, NULL);
+            printf("Undervolting:\n");
+
+            // Wait until both threads finish
+            pthread_join(undervolting_thread, NULL);
+            printf("\nUndervolting thread joined.\n");
+        }
+        printf("Joining function threads.\n");
+        for (int i = 0; i < u_spec.threads; i++) {
         pthread_join(function_thread[i], NULL);
         printf("Thread %d joined\n", i);
     }
+    } else {
+        // HARDWARE UNDERVOLTING
 
+        
+    }
     printf("\nFinished plundervolt run.\n");
     return 0;
 }

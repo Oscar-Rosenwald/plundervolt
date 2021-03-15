@@ -34,12 +34,12 @@ int main () {
     spec.undervolt = 1;
 
     int error_maybe = plundervolt_set_specification(spec);
-    if (error_maybe) {
+    if (error_maybe != PLUNDERVOLT_NO_ERROR) {
         plundervolt_print_error(error_maybe);
     }
 
     error_maybe = plundervolt_run();
-    if (error_maybe) {
+    if (error_maybe != PLUNDERVOLT_NO_ERROR) {
         plundervolt_print_error(error_maybe);
     }
     plundervolt_cleanup();

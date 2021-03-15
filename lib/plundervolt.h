@@ -10,6 +10,7 @@
 typedef enum {software, hardware} undervolting_type;
 
 typedef enum {
+    PLUNDERVOLT_NO_ERROR = 0,
     PLUNDERVOLT_GENERIC_ERROR = 1,
     PLUNDERVOLT_RANGE_ERROR = 2,
     PLUNDERVOLT_NOT_INITIALISED_ERROR = 3,
@@ -91,10 +92,14 @@ typedef struct plundervolt_specification_t {
      * 
      */
     int wait_time;
+    /**
+     * @brief Type of undervolting to do - Hardware or Software
+     */
+    undervolting_type u_type;
 } plundervolt_specification_t;
 
 /**
- * @return uint64_t Current voltage in mV.
+ * @return uint64_t Current undervoltage in mV.
  */
 uint64_t plundervolt_get_current_undervoltage();
 
