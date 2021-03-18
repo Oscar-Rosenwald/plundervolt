@@ -163,8 +163,9 @@ void* plundervolt_apply_undervolting() {
         // HARDWARE undervolting
 
         int error_check;
+        int iterations;
 
-        while (!loop_finished) {
+        while (!loop_finished && iterations != u_spec.tries) {
             error_check = plundervolt_configure_glitch(u_spec.delay_before_undervolting, u_spec.repeat, u_spec.start_voltage, u_spec.duration_start, u_spec.undervolting_voltage, u_spec.duration_during, u_spec.end_voltage);
             if (error_check) { // If not 0
                 plundervolt_set_loop_finished(); // Stops this loop

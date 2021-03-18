@@ -77,7 +77,7 @@ typedef struct plundervolt_specification_t {
      * software undervolting. In ms.
      * 
      */
-    int wait_time;
+    int wait_time; // TODO inconsisten usage - software is waiting during undervolting, hardware waiting inbetween.
     /**
      * @brief Type of undervolting to do - Hardware or Software
      */
@@ -153,7 +153,7 @@ typedef struct plundervolt_specification_t {
      */
     float end_voltage;
     /**
-     * @brief Hardware. How many iterations of undervolting to perfom.
+     * @brief Hardware. How many iterations of undervolting to perfom. It acts as Hardware's version of end_voltage, i.e. it stops the undervolting after some number of iterations.
      * 
      */
     int tries;
