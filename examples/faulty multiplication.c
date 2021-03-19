@@ -143,7 +143,7 @@ int main() {
         spec.undervolting_voltage = 0.810;
         spec.end_voltage = spec.start_voltage; // Reset the voltage to the start voltage.
         spec.tries = 10000000;
-        spec.wait_time = 30;
+        spec.wait_time = 300;
         spec.u_type = hardware;
     #else
         spec.start_undervoltage = -100; // Set initial undervolting.
