@@ -319,7 +319,7 @@ int plundervolt_configure_glitch(int delay_before_undervolting, int repeat, floa
     
     // Send glitch specification
     sprintf(buffer, ("%i %1.4f %i %1.4f %i %1.4f\n"), repeat, start_voltage, duration_start, undervolting_voltage, duration_during, end_voltage);
-    printf("Glitch specification: %i %1.4f %i %1.4f %i %1.4f\n"), repeat, start_voltage, duration_start, undervolting_voltage, duration_during, end_voltage);
+    printf("Glitch specification: %d %1.4f %d %1.4f %d %1.4f\n", repeat, start_voltage, duration_start, undervolting_voltage, duration_during, end_voltage);
     // TODO print arguments, if DEBUGGING
     error_check = serialport_write(fd, buffer);
     if (error_check == -1) { // Write to Teensy failed
