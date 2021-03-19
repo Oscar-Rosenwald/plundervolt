@@ -149,6 +149,8 @@ void* plundervolt_apply_undervolting() {
 
     if (u_spec.u_type == software) {
         // SOFTWARE undervolting
+        
+        printf("Software undervolting.\n\n");
         while(u_spec.end_undervoltage <= current_undervoltage && !loop_finished) {
             printf("Undervolting: %ld\n", current_undervoltage);
 
@@ -162,6 +164,7 @@ void* plundervolt_apply_undervolting() {
     } else {
         // HARDWARE undervolting
 
+        printf("Hardware undervolting.\n\n");
         int error_check;
         int iterations;
 
@@ -187,6 +190,7 @@ void* plundervolt_apply_undervolting() {
             // Later, when DTR is introduced, and I find out what
             // it is, we'll have to reset the voltage here.
 
+            printf("End of iteration. Waiting for another.\n\n");
             msleep(u_spec.wait_time); // Give the machine time to work.
         }
     }
@@ -274,6 +278,7 @@ int plundervolt_init_teensy_connection(char* const teensy_serial, int teensy_bau
         return -1;
     }
     serialport_flush(fd); // TODO Why?
+    printf("Glitch fired.\n");
 
     return PLUNDERVOLT_NO_ERROR;
 }
@@ -283,6 +288,7 @@ int plundervolt_arm_glitch() {
     if (error_check == -1) { // Write to Teensy failed
         return -1;
     }
+    printf("Glitch armed\n");
     return PLUNDERVOLT_NO_ERROR;
 }
 
@@ -313,6 +319,7 @@ int plundervolt_configure_glitch(int delay_before_undervolting, int repeat, floa
     
     // Send glitch specification
     sprintf(buffer, ("%i %1.4f %i %1.4f %i %1.4f\n"), repeat, start_voltage, duration_start, undervolting_voltage, duration_during, end_voltage);
+    printf("Glitch specification: %i %1.4f %i %1.4f %i %1.4f\n"), repeat, start_voltage, duration_start, undervolting_voltage, duration_during, end_voltage);
     // TODO print arguments, if DEBUGGING
     error_check = serialport_write(fd, buffer);
     if (error_check == -1) { // Write to Teensy failed
