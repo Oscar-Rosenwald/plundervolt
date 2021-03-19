@@ -111,7 +111,7 @@ typedef struct plundervolt_specification_t {
      * @brief Hardware. The port connecting to Teensy. Must be a string (char* []), as the arduino code opens the connection, and it needs a string.
      * 
      */
-    char* const teensy_serial;
+    char* teensy_serial;
     /**
      * @brief Hardware. Rate of communication with Teensy.
      * 
@@ -173,6 +173,7 @@ uint64_t plundervolt_get_current_undervoltage();
  * @brief Create a plundervolt_specification_t structure and fill it with default values.
  * This function must be called before calling plundervolt_set_specification.
  * 
+ * @return A plundervolt_specivication_t object with default values.
  */
 plundervolt_specification_t plundervolt_init();
 

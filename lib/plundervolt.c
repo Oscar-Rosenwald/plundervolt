@@ -221,7 +221,7 @@ plundervolt_specification_t plundervolt_init () {
     spec.u_type = software;
 
     spec.teensy_baudrate = 115200;
-    spec.teensy_serial = -1;
+    spec.teensy_serial = "";
     spec.repeat = 1;
     spec.delay_before_undervolting = 0;
     spec.duration_start = 35;
@@ -303,7 +303,7 @@ int plundervolt_configure_glitch(int delay_before_undervolting, int repeat, floa
     memset(buffer, 0, BUFMAX); // Set buffer to all 0's
 
     // Send delay before undervolting
-    sprintf("delay %i\n", delay_before_undervolting);
+    sprintf(buffer, "delay %d\n", delay_before_undervolting);
     int error_check = serialport_write(fd, buffer);
     if (error_check == -1) { // Write to Teensy failed
         return -1;
@@ -312,9 +312,9 @@ int plundervolt_configure_glitch(int delay_before_undervolting, int repeat, floa
     memset(buffer, 0, BUFMAX); // Wipe buffer
     
     // Send glitch specification
-    sprintf(buf, ("%i %1.4f %i %1.4f %i %1.4f\n"), repeat, start_voltage, duration_start, undervolting_voltage, duration_during, end_voltage);
+    sprintf(buffer, ("%i %1.4f %i %1.4f %i %1.4f\n"), repeat, start_voltage, duration_start, undervolting_voltage, duration_during, end_voltage);
     // TODO print arguments, if DEBUGGING
-    int error_check = serialport_write(fd, buffer);
+    error_check = serialport_write(fd, buffer);
     if (error_check == -1) { // Write to Teensy failed
         return -1;
     }

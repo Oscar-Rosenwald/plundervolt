@@ -90,7 +90,7 @@ int multiplication_check_hardware() {
         if (!spec.undervolt) {
             break;
         }
-    } while (temp_res1 == check && temp_res_2 == check // Fault
+    } while (temp_res_1 == check && temp_res_2 == check // Fault
             && iterations < max_iter
             && go_on);
     fault = temp_res_1 != check || temp_res_2 != check;
