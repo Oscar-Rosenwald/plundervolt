@@ -400,8 +400,8 @@ int plundervolt_run() {
     }
     if (u_spec.undervolt) {
         pthread_t undervolting_thread;
-        pthread_create(&undervolting_thread, NULL, plundervolt_apply_undervolting, NULL);
         printf("Undervolting:\n");
+        pthread_create(&undervolting_thread, NULL, plundervolt_apply_undervolting, NULL);
 
         // Wait until both threads finish
         pthread_join(undervolting_thread, NULL);
