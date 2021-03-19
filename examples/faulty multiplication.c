@@ -19,10 +19,15 @@ The following program producess an error, but some tweeks may be necessary to
     - the undervolting start and end
  */
 #include "../lib/plundervolt.h"
-#define num_1 0xAE0000
-#define num_2 0x18
-#define result num_1 * num_2;
 #define HARDWARE // This will perform Hardware undervolting. Comment the line out is you want Software instead.
+#ifdef HARDWARE
+    #define num_1 11403264
+    #define num_2 24
+#else
+    #define num_1 0xAE0000
+    #define num_2 0x18
+#endif
+#define result num_1 * num_2;
 
 /* This controls if other threads go on.
 When one thread finds a fault, the others should stop, too,
@@ -122,7 +127,7 @@ int main() {
                                // This is necessary!
     spec.function = multiply; // Set function to undervolt on.
     spec.integrated_loop_check = 1; // Loop check is integrated
-    spec.threads = 3; // Do not set this too high. The undervolting then happens too quickly
+    spec.threads = 1; // Do not set this too high. The undervolting then happens too quickly
                       // for all the iterations of the multiplication to take place.
     spec.undervolt = 1; // We do not wish to run this function alone, but undervolt in the process.
     spec.loop = 1; // The function is to be called in a loop.
@@ -138,7 +143,7 @@ int main() {
         spec.undervolting_voltage = 0.810;
         spec.end_voltage = spec.start_voltage; // Reset the voltage to the start voltage.
         spec.tries = 10000000;
-        spec.wait_time = 20;
+        spec.wait_time = 30;
         spec.u_type = hardware;
     #else
         spec.start_undervoltage = -100; // Set initial undervolting.
