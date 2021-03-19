@@ -278,7 +278,6 @@ int plundervolt_init_teensy_connection(char* const teensy_serial, int teensy_bau
         return -1;
     }
     serialport_flush(fd); // TODO Why?
-    printf("Glitch fired.\n");
 
     return PLUNDERVOLT_NO_ERROR;
 }
@@ -297,6 +296,7 @@ int plundervolt_fire_glitch() {
     if (error_check == -1) { // Write to Teensy failed
         return -1;
     }
+    printf("Glitch fired.\n");
     return PLUNDERVOLT_NO_ERROR;
 }
 
