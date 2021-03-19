@@ -411,7 +411,7 @@ int plundervolt_run() {
 }
 
 void plundervolt_cleanup() {
-    if (u_spec.undervolt) {
+    if (u_spec.undervolt && u_spec.u_type == software) {
         plundervolt_reset_voltage();
     }
     close(fd);

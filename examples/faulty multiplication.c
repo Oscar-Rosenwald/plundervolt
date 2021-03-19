@@ -122,7 +122,7 @@ int main() {
                                // This is necessary!
     spec.function = multiply; // Set function to undervolt on.
     spec.integrated_loop_check = 1; // Loop check is integrated
-    spec.threads = 3; // Do not set this too high. The undervolting then happens too quickly
+    spec.threads = 1; // Do not set this too high. The undervolting then happens too quickly
                       // for all the iterations of the multiplication to take place.
     spec.undervolt = 1; // We do not wish to run this function alone, but undervolt in the process.
     spec.loop = 1; // The function is to be called in a loop.
