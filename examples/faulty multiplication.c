@@ -136,13 +136,14 @@ int main() {
         spec.teensy_serial = "/dev/ttyACM0";
         // Teensy_baudrate stays the default.
         spec.repeat = 1; // Undervolt only once per iteration.
-        spec.delay_before_undervolting = 35;
-        spec.duration_start = 100;
-        spec.duration_during = 100;
+        spec.delay_before_undervolting = 300;
+        spec.duration_start = 35;
+        spec.duration_during = 20;
         spec.start_voltage = 1.05;
         spec.undervolting_voltage = 0.810;
         spec.end_voltage = spec.start_voltage; // Reset the voltage to the start voltage.
-        spec.tries = 10000000;
+                                               //This is not necessarily the case with every configuration.
+        spec.tries = 100000;
         spec.wait_time = 300;
         spec.u_type = hardware;
     #else
