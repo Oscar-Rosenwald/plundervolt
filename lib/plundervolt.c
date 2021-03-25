@@ -91,7 +91,7 @@ void debug_print(int level, const char *string, ...) {
     va_start(arguments, string);
 
     if (level <= debugging_level) {
-        vprintf(string, arguments)
+        vprintf(string, arguments);
     }
     va_end(arguments);
 }
@@ -428,7 +428,7 @@ int plundervolt_configure_glitch(int delay_before_undervolting, int repeat, floa
         memset(buffer, 0, BUFMAX); // Wipe buffer
         serialport_read_lines(fd, buffer, EOL, BUFMAX, 10, 3); // Read response
         // TODO Why Timeout = 10?
-        debugging_level(3, "Teensy response: %s\n", buffer);
+        debug_print(3, "Teensy response: %s\n", buffer);
     }
 
     return PLUNDERVOLT_NO_ERROR;
@@ -531,7 +531,7 @@ void plundervolt_cleanup() {
     debug_print(2, "plundervolt_cleanup()\n");
 
     if (u_spec.undervolt && u_spec.u_type == software) {
-        debug_print(3, "Resetting voltage\n")
+        debug_print(3, "Resetting voltage\n");
         plundervolt_reset_voltage();
     }
     debug_print(3, "Closing connection/file\n");

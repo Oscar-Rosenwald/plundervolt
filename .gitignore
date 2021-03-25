@@ -3,5 +3,5 @@ main
 *.swp
 *.so
 *msr
-*faulty multiplication
+*faulty_multiplication
 logs.org
