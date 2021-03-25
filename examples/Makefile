@@ -12,11 +12,11 @@ arduino-serial-lib.o: ../lib/arduino/arduino-serial-lib.h
 plundervolt.o: ../lib/plundervolt.h
 	gcc -c -g ../lib/plundervolt.c
 
-multiply: faulty\ multiplication.o plundervolt.o arduino-serial-lib.o
-	gcc -o faulty\ multiplication faulty\ multiplication.o plundervolt.o arduino-serial-lib.o -pthread -lm
+multiply: faulty_multiplication.o plundervolt.o arduino-serial-lib.o
+	gcc -o faulty_multiplication faulty_multiplication.o plundervolt.o arduino-serial-lib.o -pthread -lm
 
-faulty\ multiplication.o: faulty\ multiplication.c ../lib/plundervolt.h
-	gcc -c -g faulty\ multiplication.c
+faulty_multiplication.o: faulty_multiplication.c ../lib/plundervolt.h
+	gcc -c -g faulty_multiplication.c
 
 clean:
 	rm *.o

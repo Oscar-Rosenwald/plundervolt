@@ -226,11 +226,13 @@ void* plundervolt_apply_undervolting() {
         debug_print(1, "Hardware undervolting\n\n");
 
         int error_check;
-        int iterations;
+        int iterations = 1;
 
         debug_print(3, "Starting to undervolt\n");
         while (!loop_finished && iterations != u_spec.tries) {
             debug_print(4, "Hardware undervolting iteration\n");
+
+            iterations++;
 
             debug_print(3, "Configuring, arming, and firing the glitch\n");
             error_check = plundervolt_configure_glitch(u_spec.delay_before_undervolting, u_spec.repeat, u_spec.start_voltage, u_spec.duration_start, u_spec.undervolting_voltage, u_spec.duration_during, u_spec.end_voltage);
