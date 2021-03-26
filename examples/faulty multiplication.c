@@ -88,8 +88,10 @@ int multiplication_check_hardware() {
 
     do {
         iterations++;
+        printf("multiplication iteration: %d\n", iterations);
         temp_res_1 = operand1 * operand2;
         temp_res_2 = operand1 * operand2;
+        printf("result: %ld\n\n", temp_res_1);
 
         // Stop if we are not undervolting.
         if (!spec.undervolt) {
@@ -135,7 +137,7 @@ int main() {
     #ifdef HARDWARE
         spec.teensy_serial = "/dev/ttyACM0";
         // Teensy_baudrate stays the default.
-        spec.repeat = 1; // Undervolt only once per iteration.
+        spec.repeat = 1000; // Undervolt only once per iteration.
         spec.delay_before_undervolting = 200;
         spec.duration_start = 35;
         spec.duration_during = -30;
@@ -143,7 +145,7 @@ int main() {
         spec.undervolting_voltage = 0.795;
         spec.end_voltage = spec.start_voltage; // Reset the voltage to the start voltage.
                                                //This is not necessarily the case with every configuration.
-        spec.tries = 8;
+        spec.tries = 50;
         spec.wait_time = 300;
         spec.u_type = hardware;
     #else
@@ -151,6 +153,8 @@ int main() {
         spec.end_undervoltage = -230; // Set maximal undervolting.
         spec.u_type = software; // We want to undervolt softward-wise
     #endif
+
+    plundervolt_debug(1);
 
     printf("Plundervolt specification initialised.\n");
 

@@ -200,7 +200,7 @@ plundervolt_specification_t plundervolt_init();
  * @brief Set the internal plundervolt specification of the library.
  * Must be called after plundervolt_init().
  * 
- * @param spec Specification to be set to.
+ * @param spec plundervolt_specification_t Specification to be set to.
  * @return int 0 if no error, PLUNDERVOLT_NOT_INITIALISED_ERROR otherwise.
  */
 int plundervolt_set_specification(plundervolt_specification_t);
@@ -231,7 +231,7 @@ void plundervolt_cleanup();
 /**
  * @brief Prints the appropriate message to the plundervolt error passed as argument.
  * 
- * @param error The error to translate.
+ * @param error plundervolt_error_t The error to translate.
  */
 void plundervolt_print_error(plundervolt_error_t);
 
@@ -275,8 +275,8 @@ void plundervolt_reset_voltage();
 /**
  * @brief Opens the serial port fd, throwing the appropriate exceptions.
  * 
- * @param teensy_serial Serial port of the Teensy system
- * @param teensy_baudrate Boud rate of the undervolting ?
+ * @param teensy_serial char* const Serial port of the Teensy system
+ * @param teensy_baudrate int Boud rate of the undervolting ?
  * 
  * @return Error message if initialisation of connection with Teensy failed.
  */

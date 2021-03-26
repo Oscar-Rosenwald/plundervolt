@@ -28,7 +28,7 @@ int fd = 0;
 int initialised = 0;
 plundervolt_specification_t u_spec;
 uint64_t current_undervoltage;
-int loop_finished;
+int loop_finished = 0;
 int debugging_level = 1;
 
 /**
@@ -230,40 +230,47 @@ void* plundervolt_apply_undervolting() {
 
         debug_print(3, "Starting to undervolt\n");
         while (!loop_finished && iterations != u_spec.tries) {
-            debug_print(4, "Hardware undervolting iteration\n");
+            debug_print(4, "Hardware undervolting iteration\n\n");
 
             iterations++;
 
             debug_print(3, "Configuring, arming, and firing the glitch\n");
-            error_check = plundervolt_configure_glitch(u_spec.delay_before_undervolting, u_spec.repeat, u_spec.start_voltage, u_spec.duration_start, u_spec.undervolting_voltage, u_spec.duration_during, u_spec.end_voltage);
-            if (error_check) { // If not 0
-                plundervolt_set_loop_finished(); // Stops this loop
-                // TODO Handle error
+            for (int i = 0; i < u_spec.repeat; i++) {
+                debug_print(4, "\nRepeat iteration %d\n", i);
+                // error_check = plundervolt_configure_glitch(u_spec.delay_before_undervolting, u_spec.repeat, u_spec.start_voltage, u_spec.duration_start, u_spec.undervolting_voltage, u_spec.duration_during, u_spec.end_voltage);
+                error_check = plundervolt_configure_glitch(u_spec.delay_before_undervolting, 1, u_spec.start_voltage, u_spec.duration_start, u_spec.undervolting_voltage, u_spec.duration_during, u_spec.end_voltage);
+                if (error_check) { // If not 0
+                    plundervolt_set_loop_finished(); // Stops this loop
+                    // TODO Handle error
+                }
+
+                error_check = plundervolt_arm_glitch();
+                if (error_check) { // If not 0
+                    plundervolt_set_loop_finished(); // Stops this loop
+                    // TODO Handle error
+                }
+
+                error_check = plundervolt_fire_glitch();
+                if (error_check) { // If not 0
+                    plundervolt_set_loop_finished(); // Stops this loop
+                    // TODO Handle error
+                }
+
+                // Later, when DTR is introduced, and I find out what
+                // it is, we'll have to reset the voltage here.
+
+
+                msleep(u_spec.wait_time); // Give the machine time to work.
             }
-
-            error_check = plundervolt_arm_glitch();
-            if (error_check) { // If not 0
-                plundervolt_set_loop_finished(); // Stops this loop
-                // TODO Handle error
-            }
-
-            error_check = plundervolt_fire_glitch();
-            if (error_check) { // If not 0
-                plundervolt_set_loop_finished(); // Stops this loop
-                // TODO Handle error
-            }
-
-            // Later, when DTR is introduced, and I find out what
-            // it is, we'll have to reset the voltage here.
-
             debug_print(3, "Glitch executed\n");
+            debug_print(1, "\n"); // Just to better separate the glitches in the terminal
 
-            msleep(u_spec.wait_time); // Give the machine time to work.
+            sleep(5);
         }
-        debug_print(3, "Undervolting ended\n");
+        debug_print(3, "Undervolting loop ended\n");
     }
 
-    debug_print(1, "Undervolting finished.\n\n");
+    debug_print(1, "\nUndervolting finished.\n\n");
     plundervolt_set_loop_finished();
     return NULL; // Must return something, as pthread_create requires a void* return value.
 }
@@ -424,7 +431,7 @@ int plundervolt_configure_glitch(int delay_before_undervolting, int repeat, floa
     }
     debug_print(3, "Glitch configuration sent\n");
 
-    if (debugging_level <= 3) {
+    if (debugging_level >= 3) {
         memset(buffer, 0, BUFMAX); // Wipe buffer
         serialport_read_lines(fd, buffer, EOL, BUFMAX, 10, 3); // Read response
         // TODO Why Timeout = 10?
