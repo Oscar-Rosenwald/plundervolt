@@ -1,4 +1,4 @@
-all: main multiply f_m clean
+all: main multiply f_m a clean
 
 main: main.o plundervolt.o arduino-serial-lib.o
 	gcc -o main main.o plundervolt.o arduino-serial-lib.o -pthread -lm
@@ -23,6 +23,12 @@ f_m: f_m.o plundervolt.o arduino-serial-lib.o
 
 f_m.o: faulty_mul2.c ../lib/plundervolt.h ../lib/arduino/arduino-serial-lib.h
 	gcc -c -g faulty_mul2.c -o f_m.o
+
+a: a.o arduino-serial-lib.o
+	gcc -o a a.o arduino-serial-lib.o -lm
+
+a.o: a.c ../lib/arduino/arduino-serial-lib.h
+	gcc -c -g a.c -o a.o
 
 clean:
 	rm *.o
