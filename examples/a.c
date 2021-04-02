@@ -59,7 +59,7 @@ int configure_glitch(int repeat, float v1, int d1, float v2, int d2, float v3) {
 }
 
 int multiply() {
-    int max_iter = 100000;
+    int max_iter = 300000;
     int iterations = 0;
     int fault = 0;
 
@@ -194,16 +194,18 @@ int main () {
     int delay_during= -30;
     float end_voltage = start_voltage;
 
+    system("~/set_freq.sh 3.6GHz");
+	sleep(2);
+	init(serial, trigger, baudrate);
+    // To make the trigger respond faster.
+    TRIGGER_RST
+    TRIGGER_SET
+    TRIGGER_RST
+
     for (int i = 0; i < tries; i++) {
         undervolting_voltage -= 0.002;
         printf("voltage %f %i\n", undervolting_voltage, i);
-        system("~/set_freq.sh 3.6GHz");
-        init(serial, trigger, baudrate);
 
-        // To make the trigger respond faster.
-        TRIGGER_RST
-        TRIGGER_SET
-        TRIGGER_RST
 
         set_delay(delay_before);
         configure_glitch(repeat, start_voltage, delay_start, undervolting_voltage, delay_during, end_voltage);
@@ -215,10 +217,10 @@ int main () {
             v_close();
             return 1;
         }
-        v_close();
-        sleep(7);
+        sleep(3);
         printf("\n");
     }
+    v_close();
     printf("No fault.\n");
     return 0;
 }
