@@ -5,3 +5,6 @@ main
 *msr
 *faulty_multiplication
 logs.org
+*.sh
+*f_m
+*a
