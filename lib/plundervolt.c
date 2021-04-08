@@ -547,8 +547,6 @@ void plundervolt_print_error(plundervolt_error_t error) {
         break;
     case PLUNDERVOLT_NOT_INITIALISED_ERROR:
         fprintf(stderr, "Plundervolt specification was not initialised properly.\n");
-    case PLUNDERVOLT_NO_LOOP_CHECK_ERROR:
-        fprintf(stderr, "The specification of who stops the function loop is faulty.\n");
     case PLUNDERVOLT_WRITE_TO_TEENSY_ERROR:
         fprintf(stderr, "Cannot write to Teensy for some reason.\n");
     case PLUNDERVOLT_CONNECTION_INIT_ERROR:
