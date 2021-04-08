@@ -152,6 +152,7 @@ uint64_t plundervolt_compute_msr_value(int64_t value, uint64_t plane) {
 double plundervolt_read_voltage() {
     if (!msr_accessible_check()) {
         // TODO Error
+        return PLUNDERVOLT_GENERIC_ERROR;
     }
     uint64_t msr;
     __off_t offset = 0x198; // TODO Why this number?
@@ -334,7 +335,6 @@ int plundervolt_set_specification(plundervolt_specification_t spec) {
 }
 
 int faulty_undervolting_specification() {
-
     if (!initialised) {
         return PLUNDERVOLT_NOT_INITIALISED_ERROR;
     }
@@ -361,7 +361,7 @@ int plundervolt_init_hardware_undervolting(char* const teensy_serial, char* cons
     if (u_spec.using_dtr) {
         fd_trigger = open(trigger_serial, O_RDWR | O_NOCTTY);
         if(fd_trigger == -1) {
-            return -1;
+            return PLUNDERVOLT_CONNECTION_INIT_ERROR;
         }
 
         // Create new termios struc, we call it 'tty' for convention
@@ -409,7 +409,7 @@ int plundervolt_init_hardware_undervolting(char* const teensy_serial, char* cons
         tcsetattr(fd_trigger, TCSANOW, &tty);
         if( tcsetattr(fd_trigger, TCSAFLUSH, &tty) < 0) {
             perror("init_serialport: Couldn't set term attributes");
-            return -1;
+            return PLUNDERVOLT_CONNECTION_INIT_ERROR;
         }
     }
 
@@ -421,7 +421,7 @@ int plundervolt_init_hardware_undervolting(char* const teensy_serial, char* cons
     // Open the connection to Teensy
     fd_teensy = serialport_init(teensy_serial, teensy_baudrate);
     if (fd_teensy == -1) { // Connection failed to open.
-        return -1;
+        return PLUNDERVOLT_CONNECTION_INIT_ERROR;
     }
     serialport_flush(fd_teensy); // TODO Why?
 
@@ -431,7 +431,7 @@ int plundervolt_init_hardware_undervolting(char* const teensy_serial, char* cons
 int plundervolt_arm_glitch() {
     int error_check = serialport_write(fd_teensy, "arm\n");
     if (error_check == -1) { // Write to Teensy failed
-        return -1;
+        return PLUNDERVOLT_WRITE_TO_TEENSY_ERROR;
     }
     char buf[BUFMAX];
     memset(buf,0,BUFMAX);
@@ -446,7 +446,7 @@ int plundervolt_fire_glitch() {
     } else {
         int error_check = write(fd_teensy, "\n", 1);
         if (error_check != 1) { // Write to Teensy failed
-            return -1;
+            return PLUNDERVOLT_WRITE_TO_TEENSY_ERROR;
         }
     }
     return PLUNDERVOLT_NO_ERROR;
@@ -475,10 +475,10 @@ int set_delay(int delay) {
 	memset(buf,0,BUFMAX);  //
 	sprintf(buf, ("delay %i\n"), delay);
 	printf("send: %s", buf);
-	int rc = serialport_write(fd_teensy, buf); // Wait delay_before_glitch_us useconds.
-	if(rc==-1) {
+	int error_check = serialport_write(fd_teensy, buf); // Wait delay_before_glitch_us useconds.
+	if(error_check == -1) {
 		printf("error writing");
-		return -1;
+		return PLUNDERVOLT_WRITE_TO_TEENSY_ERROR;
 	}
     memset(buf,0,BUFMAX);  //
 	serialport_read_lines(fd_teensy, buf, EOL, BUFMAX, 10, 2); // Clearing the global buffer
@@ -488,9 +488,8 @@ int set_delay(int delay) {
 }
 
 int plundervolt_configure_glitch(int delay_before_undervolting, int repeat, float start_voltage, int duration_start, float undervolting_voltage, int duration_during, float end_voltage) {
-
     if (fd_teensy == -1) { // Teensy not opened properly
-        return -1;
+        return PLUNDERVOLT_CONNECTION_INIT_ERROR;
     }
 
     char buffer[BUFMAX];
@@ -501,7 +500,7 @@ int plundervolt_configure_glitch(int delay_before_undervolting, int repeat, floa
     
     int error_check = serialport_write(fd_teensy, buffer);
     if (error_check == -1) { // Write to Teensy failed
-        return -1;
+        return PLUNDERVOLT_WRITE_TO_TEENSY_ERROR;
     }
     plundervolt_teensy_read_response(teensy_response_level);
 
@@ -512,7 +511,7 @@ int plundervolt_configure_glitch(int delay_before_undervolting, int repeat, floa
     // TODO print arguments, if DEBUGGING
     error_check = serialport_write(fd_teensy, buffer);
     if (error_check == -1) { // Write to Teensy failed
-        return -1;
+        return PLUNDERVOLT_WRITE_TO_TEENSY_ERROR;
     }
     plundervolt_teensy_read_response(teensy_response_level);
 
@@ -544,7 +543,6 @@ void plundervolt_print_error(plundervolt_error_t error) {
 }
 
 int open_file() {
-
     plundervolt_error_t error_check;
     if (u_spec.u_type == software) { // Software undervolting
         error_check = msr_accessible_check();
@@ -555,7 +553,6 @@ int open_file() {
 }
 
 int plundervolt_run() {
-
     if (!initialised) {
         return PLUNDERVOLT_NOT_INITIALISED_ERROR;
     }
@@ -603,7 +600,7 @@ int plundervolt_run() {
         plundervolt_apply_undervolting();
     }
 
-    return 0;
+    return PLUNDERVOLT_NO_ERROR;
 }
 
 void plundervolt_cleanup() {
