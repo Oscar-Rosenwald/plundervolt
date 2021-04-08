@@ -1,5 +1,5 @@
 /**
- * @brief Library for undervolting; Version 5 - Hardware undervolting, Simple with Teensy
+ * @brief Library for undervolting; Version 5 - Hardware undervolting, Simple (single thread) with Teensy
  */
 /* Always compile with "-pthread".
 Always run after "sudo modprobe msr" */
@@ -15,21 +15,29 @@ Always run after "sudo modprobe msr" */
 #include <limits.h>
 #include <pthread.h>
 #include <sched.h>
+#include <errno.h>
+#include <fcntl.h>   	 // File Control Definitions
+#include <linux/serial.h>
+#include <termios.h>	 // POSIX Terminal Control Definitions
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
 #include <x86intrin.h>
 #include <stdarg.h>
+#include <sys/ioctl.h>
 #include "arduino/arduino-serial-lib.h"
 #include "plundervolt.h"
 
-int fd = 0;
+int fd_teensy = 0, fd_trigger = 0;
 int initialised = 0;
 plundervolt_specification_t u_spec;
 uint64_t current_undervoltage;
-int loop_finished = 0;
-int debugging_level = 1;
+int loop_finished = 0; // When the user wishes to stop all loops of undervolting, they set this to 1. See plundervolt_set_loop_finished().
+int debugging_level = 1; // Controlls how many print statements are used. See plundervolt_debug().
+int teensy_response_level = 3; // At what debugging_level do we show Teensy responses to the sent commands.
+int DTR_flag = TIOCM_DTR;
+
 
 /**
  * @brief Run function given in u_spec only once.
@@ -64,65 +72,76 @@ int msr_accessible_check();
  * @return int PLUNDERVOLT_NO_ERROR if connection opened. If not, returns the appropriate error for what happened.
  */
 int open_file();
+/* /\** */
+/*  * @brief Print a formatted string for debugging according to the level. */
+/*  *  */
+/*  * @param level String is printed if level <= debugging_level. 0-4 */
+/*  * @param string Formatted string to print. */
+/*  *\/ */
+/* void debug_print(int level, const char *string, ...); */
 /**
- * @brief Print a formatted string for debugging according to the level.
+ * @brief Run function u_spec.function with arguments u_spec.arguments given number of times.
  * 
- * @param level String is printed if level <= debugging_level. 0-4
- * @param string Formatted string to print.
+ * @return Whatever the function returns.
  */
-void debug_print(int level, const char *string, ...);
+void* run_function_times(int, void *);
+/**
+ * @brief Sends the delay information to Teensy.
+ * 
+ * @param delay Delay in ms.
+ * @return int Error code.
+ */
+int set_delay(int delay);
 
-void plundervolt_debug(int level) {
-    if (level < 0 || level > 4) {
-        fprintf(stderr, "Argument \"level\" of function \"plundervolt_debug()\" must be in the interval <0;4>. Was %d\n. Debugging level stayed at %d\n\n", level, debugging_level);
-        return;
-    }
-    debugging_level = level;
-}
+/* void plundervolt_set_teensy_response_level(int level) { */
+/*     teensy_response_level = level; */
+/* } */
 
-void debug_print(int level, const char *string, ...) {
-    va_list arguments;
-    // int format_num = 0;
-    // for(int i=0; string[i]; i++) {
-    //     if(s[i] == '%') {
-    //         format_num++;
-    //     }
-    // }
-    va_start(arguments, string);
+/* void plundervolt_debug(int level) { */
+/*     if (level < 0 || level > 4) { */
+/*         fprintf(stderr, "Argument \"level\" of function \"plundervolt_debug()\" must be in the interval <0;4>. Was %d\n. Debugging level stayed at %d\n\n", level, debugging_level); */
+/*         return; */
+/*     } */
+/*     debugging_level = level; */
+/* } */
 
-    if (level <= debugging_level) {
-        vprintf(string, arguments);
-    }
-    va_end(arguments);
-}
+/* void debug_print(int level, const char *string, ...) { */
+/*     va_list arguments; */
+/*     // int format_num = 0; */
+/*     // for(int i=0; string[i]; i++) { */
+/*     //     if(s[i] == '%') { */
+/*     //         format_num++; */
+/*     //     } */
+/*     // } */
+/*     va_start(arguments, string); */
+
+/*     if (level <= debugging_level) { */
+/*         vprintf(string, arguments); */
+/*     } */
+/*     va_end(arguments); */
+/* } */
 
 uint64_t plundervolt_get_current_undervoltage() {
-    debug_print(2, "plundervolt_get_current_voltage()\n\n");
     return current_undervoltage;
 }
 
 void plundervolt_set_loop_finished() {
-    debug_print(2, "plundervolt_set_loop_finished()\n\n");
     loop_finished = 1;
 }
 
 int msr_accessible_check() {
-    debug_print(2, "msr_accessible_check()\n");
 
-    debug_print(3, "Opening file /dev/cpu/0/msr\n");
     // Only open the file if it has not been open before.
-    if (fd == 0) {
-        fd = open("/dev/cpu/0/msr", O_RDWR);
+    if (fd_teensy == 0) {
+        fd_teensy = open("/dev/cpu/0/msr", O_RDWR);
     }
-    if (fd == -1) { // msr file failed to open
+    if (fd_teensy == -1) { // msr file failed to open
         return PLUNDERVOLT_CANNOT_ACCESS_MSR_ERROR;
     }
-    debug_print(3, "/dev/cpu/0/msr opened\n\n");
     return 0;
 }
 
 uint64_t plundervolt_compute_msr_value(int64_t value, uint64_t plane) {
-    debug_print(2, "plundervolt_compute_msr_value(%d, %d)\n\n", value, plane);
     value=(value*1.024)-0.5; // -0.5 to deal with rounding issues
 	value=0xFFE00000&((value&0xFFF)<<21);
 	value=value|0x8000001100000000;
@@ -131,7 +150,6 @@ uint64_t plundervolt_compute_msr_value(int64_t value, uint64_t plane) {
 }
 
 double plundervolt_read_voltage() {
-    debug_print(2, "plundervolt_read_voltage()\n\n");
     if (!msr_accessible_check()) {
         // TODO Error
     }
@@ -140,7 +158,7 @@ double plundervolt_read_voltage() {
     uint64_t number = 0xFFFF00000000; //TODO And this is what?
     double magic = 8192.0; // TODO Ha?
     int shift_by = 32; // TODO Why >>32?
-    pread(fd, &msr, sizeof msr, offset);
+    pread(fd_teensy, &msr, sizeof msr, offset);
     double res = (double)((msr & number)>>shift_by);
     return res / magic;
 }
@@ -148,18 +166,14 @@ double plundervolt_read_voltage() {
 // TODO plundervolt_set_voltage(value);
 
 void plundervolt_set_undervolting(uint64_t value) {
-    debug_print(2, "plundervolt_set_undervolting(%d)\n\n", value);
     // 0x150 is the offset of the Plane Index buffer in msr (see Plundervolt paper).
     off_t offset = 0x150;
-    pwrite(fd, &value, sizeof(value), offset);
+    pwrite(fd_teensy, &value, sizeof(value), offset);
 }
 
 void* run_function_loop (void* arguments) {
-    debug_print(2, "run_function_loop(void arguments)\n");
 
-    debug_print(3, "Running given function in a loop\n");
     while (true) {
-        debug_print(4, "run_function_loop new iteration\n");
         if (loop_finished){
             break;
         }
@@ -170,21 +184,22 @@ void* run_function_loop (void* arguments) {
         }
         (u_spec.function)(arguments);
     }
-    debug_print(3, "Finished running given function in a loop\n");
     return NULL;
 }
 
 void* run_function (void * arguments) {
-    debug_print(2, "run_function(void* arguments)\n");
 
-    debug_print(3, "Running given function once\n");
     (u_spec.function)(arguments);
-    debug_print(3, "Finished running given function once\n");
     return NULL;
 }
 
+void* run_function_times (int times, void * arguments) {
+    for (int i = 0; i < times; i++) {
+        (u_spec.function)(arguments);
+    }
+}
+
 void* plundervolt_apply_undervolting() {
-    debug_print(2, "plundervolt_apply_undervolting()\n");
 
     cpu_set_t cpuset;
     pthread_t thread = pthread_self();
@@ -193,100 +208,89 @@ void* plundervolt_apply_undervolting() {
     CPU_ZERO(&cpuset);
     CPU_SET(0, &cpuset);
 
-    debug_print(3, "Setting affinity\n");
     int set_affinity = pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
     if (set_affinity != 0) {
-        debug_print(0, "Pthread set affinity error\n."); // This must be printed every time.
         // TODO Better error
     }
-    debug_print(3, "Affinity set\n");
-
-    current_undervoltage = u_spec.start_undervoltage;
 
     if (u_spec.u_type == software) {
         // SOFTWARE undervolting
-        debug_print(1, "Software undervolting\n\n");
 
-        debug_print(3, "Starting to undervolt\n");
+        current_undervoltage = u_spec.start_undervoltage;
+
         while(u_spec.end_undervoltage <= current_undervoltage && !loop_finished) {
-            debug_print(1, "Undervolting: %ld\n", current_undervoltage); // This is important information, so debugging_level is 1.
 
-            debug_print(3, "Setting new voltage\n");
             plundervolt_set_undervolting(plundervolt_compute_msr_value(current_undervoltage, 0));
             plundervolt_set_undervolting(plundervolt_compute_msr_value(current_undervoltage, 2));
-            (debug_print(3, "New voltage set\n"));
 
             msleep(u_spec.wait_time);
 
             current_undervoltage -= u_spec.step;
         }
-        debug_print(3, "Undervolting ended\n");
     } else {
         // HARDWARE undervolting
-        debug_print(1, "Hardware undervolting\n\n");
 
         int error_check;
-        int iterations = 1;
+        int iterations = 0;
 
-        debug_print(3, "Starting to undervolt\n");
-        while (!loop_finished && iterations != u_spec.tries) {
-            debug_print(4, "Hardware undervolting iteration\n\n");
+        while (!loop_finished && iterations < u_spec.tries) {
+            // This will make the system respond faster
+            plundervolt_reset_voltage();
+            plundervolt_fire_glitch();
+            plundervolt_reset_voltage();
 
             iterations++;
 
-            debug_print(3, "Configuring, arming, and firing the glitch\n");
-            for (int i = 0; i < u_spec.repeat; i++) {
-                debug_print(4, "\nRepeat iteration %d\n", i);
-                // error_check = plundervolt_configure_glitch(u_spec.delay_before_undervolting, u_spec.repeat, u_spec.start_voltage, u_spec.duration_start, u_spec.undervolting_voltage, u_spec.duration_during, u_spec.end_voltage);
-                error_check = plundervolt_configure_glitch(u_spec.delay_before_undervolting, 1, u_spec.start_voltage, u_spec.duration_start, u_spec.undervolting_voltage, u_spec.duration_during, u_spec.end_voltage);
-                if (error_check) { // If not 0
-                    plundervolt_set_loop_finished(); // Stops this loop
-                    // TODO Handle error
-                }
-
-                error_check = plundervolt_arm_glitch();
-                if (error_check) { // If not 0
-                    plundervolt_set_loop_finished(); // Stops this loop
-                    // TODO Handle error
-                }
-
-                error_check = plundervolt_fire_glitch();
-                if (error_check) { // If not 0
-                    plundervolt_set_loop_finished(); // Stops this loop
-                    // TODO Handle error
-                }
-
-                // Later, when DTR is introduced, and I find out what
-                // it is, we'll have to reset the voltage here.
-
-
-                msleep(u_spec.wait_time); // Give the machine time to work.
+            error_check = plundervolt_configure_glitch(u_spec.delay_before_undervolting, u_spec.repeat, u_spec.start_voltage, u_spec.duration_start, u_spec.undervolting_voltage, u_spec.duration_during, u_spec.end_voltage);
+            // error_check = plundervolt_configure_glitch(u_spec.delay_before_undervolting, 1, u_spec.start_voltage, u_spec.duration_start, u_spec.undervolting_voltage, u_spec.duration_during, u_spec.end_voltage);
+            if (error_check) { // If not 0
+                plundervolt_set_loop_finished(); // Stops this loop
+                // TODO Handle error
             }
-            debug_print(3, "Glitch executed\n");
-            debug_print(1, "\n"); // Just to better separate the glitches in the terminal
 
-            sleep(5);
+            error_check = plundervolt_arm_glitch();
+            if (error_check) { // If not 0
+                plundervolt_set_loop_finished(); // Stops this loop
+                // TODO Handle error
+            }
+
+            msleep(u_spec.wait_time); // Give the machine time to work.
+
+            // The function must call plundervolt_fire_glitch() itself.
+            // This is done because of the timing of Teensy. We wouldn't want to undervolt
+            // too soon, so we let the user decide when to run the function.
+            // WARNING: The user must also reset the voltage with plundervolt_reset_voltage()!
+            if (u_spec.loop) {
+                if (u_spec.integrated_loop_check) {
+                    run_function_loop(u_spec.arguments);
+                } else {
+                    run_function_times(u_spec.loop, u_spec.arguments);
+                }
+            } else {
+                run_function(u_spec.arguments);
+            }
+            msleep(u_spec.wait_time);
+        
+
         }
-        debug_print(3, "Undervolting loop ended\n");
     }
 
-    debug_print(1, "\nUndervolting finished.\n\n");
     plundervolt_set_loop_finished();
     return NULL; // Must return something, as pthread_create requires a void* return value.
 }
 
 void plundervolt_reset_voltage() {
-    debug_print(2, "plundervolt_reset_voltage()\n");
-
-    debug_print(1, "Resetting voltage...\n");
-    plundervolt_set_undervolting(plundervolt_compute_msr_value(0, 0));
-    plundervolt_set_undervolting(plundervolt_compute_msr_value(0, 2));
-    sleep(3);
-    debug_print(1, "Current voltage: %f\n", 1000 * plundervolt_read_voltage());
+    if (u_spec.u_type == hardware && u_spec.using_dtr) {
+        ioctl(fd_trigger,TIOCMBIC,&DTR_flag);
+    } else {
+        plundervolt_set_undervolting(plundervolt_compute_msr_value(0, 0));
+        plundervolt_set_undervolting(plundervolt_compute_msr_value(0, 2));
+        sleep(3);
+    }
+    
 }
 
 plundervolt_specification_t plundervolt_init () {
-    debug_print(2, "plundervolt_init()\n");
     plundervolt_specification_t spec;
     spec.arguments = NULL;
     spec.step = 1;
@@ -304,6 +308,8 @@ plundervolt_specification_t plundervolt_init () {
 
     spec.teensy_baudrate = 115200;
     spec.teensy_serial = "";
+    spec.trigger_serial = "";
+    spec.using_dtr = 1;
     spec.repeat = 1;
     spec.delay_before_undervolting = 0;
     spec.duration_start = 35;
@@ -312,6 +318,7 @@ plundervolt_specification_t plundervolt_init () {
     spec.undervolting_voltage = 600;
     spec.end_voltage = 700;
     spec.tries = 1;
+    spec.using_dtr = 1;
 
     initialised = 1;
 
@@ -319,7 +326,6 @@ plundervolt_specification_t plundervolt_init () {
 }
 
 int plundervolt_set_specification(plundervolt_specification_t spec) {
-    debug_print(2, "plundervolt_set_specification(plundervolt_specification_t spec)\n");
     if (!initialised) {
         return PLUNDERVOLT_NOT_INITIALISED_ERROR;
     }
@@ -328,115 +334,187 @@ int plundervolt_set_specification(plundervolt_specification_t spec) {
 }
 
 int faulty_undervolting_specification() {
-    debug_print(2, "fautly_undervolting_specification()\n");
 
-    debug_print(3, "Checking if specification initialised\n");
     if (!initialised) {
         return PLUNDERVOLT_NOT_INITIALISED_ERROR;
     }
-    debug_print(3, "Specification initialised. Checking if undervolting\n");
     if (u_spec.undervolt) {
-        debug_print(1, "We are undervolting\n");
         if (u_spec.start_undervoltage <= u_spec.end_undervoltage) {
             return PLUNDERVOLT_RANGE_ERROR;
         }
     }
-    debug_print(3, "Checking if function is provided\n");
     if (u_spec.function == NULL) {
         return PLUNDERVOLT_NO_FUNCTION_ERROR;
     }
-    debug_print(3, "Function provided. Checking for running in a loop, and which function will stop it\n");
     if (u_spec.loop && !u_spec.integrated_loop_check && u_spec.stop_loop == NULL) {
         return PLUNDERVOLT_NO_LOOP_CHECK_ERROR;
     }
     return 0;
 }
 
-int plundervolt_init_teensy_connection(char* const teensy_serial, int teensy_baudrate) {
-    debug_print(2, "plndervolt_init_teensy_connection(%s, %d)\n", teensy_serial, teensy_baudrate);
+int plundervolt_init_hardware_undervolting(char* const teensy_serial, char* const trigger_serial, int teensy_baudrate) {
 
-    debug_print(3, "Restarting teensy connection if needed\n");
-    // If fd open, close it first - we'll restart the connection
-    if (fd != -1) {
-        serialport_close(fd);
-        debug_print(3, "Teensy connection closed\n");
+    if (!initialised) {
+        return PLUNDERVOLT_NOT_INITIALISED_ERROR;
     }
 
-    debug_print(3, "Opening Teensy connection\n");
+    if (u_spec.using_dtr) {
+        fd_trigger = open(trigger_serial, O_RDWR | O_NOCTTY);
+        if(fd_trigger == -1) {
+            return -1;
+        }
+
+        // Create new termios struc, we call it 'tty' for convention
+        struct termios tty;
+        memset(&tty, 0, sizeof tty);
+
+        // Read in existing settings, and handle any error
+        if(tcgetattr(fd_trigger, &tty) != 0) {
+        }
+
+        tty.c_cflag &= ~PARENB; // Clear parity bit, disabling parity (most common)
+        tty.c_cflag &= ~CSTOPB; // Clear stop field, only one stop bit used in communication (most common)
+        tty.c_cflag |= CS8; // 8 bits per byte (most common)
+        tty.c_cflag &= CRTSCTS; // Disable RTS/CTS hardware flow control (most common)
+        tty.c_cflag |= CREAD | CLOCAL; // Turn on READ & ignore ctrl lines (CLOCAL = 1)
+
+        tty.c_lflag &= ~ICANON;
+        tty.c_lflag &= ~ECHO; // Disable echo
+        tty.c_lflag &= ~ECHOE; // Disable erasure
+        tty.c_lflag &= ~ECHONL; // Disable new-line echo
+        tty.c_lflag &= ~ISIG; // Disable interpretation of INTR, QUIT and SUSP
+        tty.c_iflag &= ~(IXON | IXOFF | IXANY); // Turn off s/w flow ctrl
+        tty.c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL); // Disable any special handling of received bytes
+
+        tty.c_oflag &= ~OPOST; // Prevent special interpretation of output bytes (e.g. newline chars)
+        tty.c_oflag &= ~ONLCR; // Prevent conversion of newline to carriage return/line feed
+        //tty.c_oflag &= ~OXTABS; // Prevent conversion of tabs to spaces (NOT PRESENT ON LINUX)
+        //tty.c_oflag &= ~ONOEOT; // Prevent removal of C-d chars (0x004) in output (NOT PRESENT ON LINUX)
+
+        tty.c_cc[VTIME] = 0;    // Wait for up to 1s (10 deciseconds), returning as soon as any data is received.
+        tty.c_cc[VMIN] = 0;
+
+        // Set in/out baud rate to be 9600
+        cfsetispeed(&tty, B38400);
+        cfsetospeed(&tty, B38400);
+
+
+        struct serial_struct kernel_serial_settings;
+        int r = ioctl(fd_trigger, TIOCGSERIAL, &kernel_serial_settings);
+        if (r >= 0) {
+            kernel_serial_settings.flags |= ASYNC_LOW_LATENCY;
+            r = ioctl(fd_trigger, TIOCSSERIAL, &kernel_serial_settings);
+        }
+
+        tcsetattr(fd_trigger, TCSANOW, &tty);
+        if( tcsetattr(fd_trigger, TCSAFLUSH, &tty) < 0) {
+            perror("init_serialport: Couldn't set term attributes");
+            return -1;
+        }
+    }
+
+    // If fd open, close it first - we'll restart the connection
+    if (fd_teensy != 0) {
+        serialport_close(fd_teensy);
+    }
+
     // Open the connection to Teensy
-    fd = serialport_init(teensy_serial, teensy_baudrate);
-    if (fd == -1) { // Connection failed to open.
-        debug_print(3, "Teensy connection failed to open\n");
+    fd_teensy = serialport_init(teensy_serial, teensy_baudrate);
+    if (fd_teensy == -1) { // Connection failed to open.
         return -1;
     }
-    serialport_flush(fd); // TODO Why?
-    debug_print(3, "Teensy connection opened\n");
+    serialport_flush(fd_teensy); // TODO Why?
 
     return PLUNDERVOLT_NO_ERROR;
 }
 
 int plundervolt_arm_glitch() {
-    debug_print(2, "plundervolt_arm_glitch()\n");
-
-    debug_print(3, "Arming the glitch\n");
-    int error_check = serialport_write(fd, "arm\n");
+    int error_check = serialport_write(fd_teensy, "arm\n");
     if (error_check == -1) { // Write to Teensy failed
         return -1;
     }
-    debug_print(1, "Glitch armed\n");
+    char buf[BUFMAX];
+    memset(buf,0,BUFMAX);
+	serialport_read_lines(fd_teensy, buf, EOL, BUFMAX, 10,2);
+	printf("Teensy response: %s",buf);
     return PLUNDERVOLT_NO_ERROR;
 }
 
 int plundervolt_fire_glitch() {
-    debug_print(2, "plundervolt_fire_glitch()\n");
-
-    debug_print(3, "Firing the glitch\n");
-    int error_check = write(fd, "\n", 1);
-    if (error_check == -1) { // Write to Teensy failed
-        return -1;
+    if (u_spec.using_dtr) {
+        ioctl(fd_trigger, TIOCMBIS, &DTR_flag);
+    } else {
+        int error_check = write(fd_teensy, "\n", 1);
+        if (error_check != 1) { // Write to Teensy failed
+            return -1;
+        }
     }
-    debug_print(1, "Glitch fired.\n");
     return PLUNDERVOLT_NO_ERROR;
 }
 
-int plundervolt_configure_glitch(int delay_before_undervolting, int repeat, float start_voltage, int duration_start, float undervolting_voltage, int duration_during, float end_voltage) {
-    debug_print(2, "plundervolt_configure_glitch(""%i %1.4f %i %1.4f %i %1.4f)\n", repeat, start_voltage, duration_start, undervolting_voltage, duration_during, end_voltage);
+void plundervolt_teensy_read_response2(int level, int lines) {
+    if (debugging_level >= level) {
+        char buffer[BUFMAX];
+        memset(buffer, 0, BUFMAX); // Wipe buffer
+        serialport_read_lines(fd_teensy, buffer, EOL, BUFMAX, 10, lines); // Read response
+        // TODO Why Timeout = 10?
+    }
+}
 
-    if (fd == -1) { // Teensy not opened properly
+void plundervolt_teensy_read_response(int level) {
+    if (debugging_level >= level) {
+        char buffer[BUFMAX];
+        memset(buffer, 0, BUFMAX); // Wipe buffer
+        serialport_read_lines(fd_teensy, buffer, EOL, BUFMAX, 10, 3); // Read response
+        // TODO Why Timeout = 10?
+    }
+}
+
+int set_delay(int delay) {
+    char buf[BUFMAX];
+	memset(buf,0,BUFMAX);  //
+	sprintf(buf, ("delay %i\n"), delay);
+	printf("send: %s", buf);
+	int rc = serialport_write(fd_teensy, buf); // Wait delay_before_glitch_us useconds.
+	if(rc==-1) {
+		printf("error writing");
+		return -1;
+	}
+    memset(buf,0,BUFMAX);  //
+	serialport_read_lines(fd_teensy, buf, EOL, BUFMAX, 10, 2); // Clearing the global buffer
+	printf("resp: %s", buf);
+    // plundervolt_teensy_read_response2(1, 2);
+    return 0;
+}
+
+int plundervolt_configure_glitch(int delay_before_undervolting, int repeat, float start_voltage, int duration_start, float undervolting_voltage, int duration_during, float end_voltage) {
+
+    if (fd_teensy == -1) { // Teensy not opened properly
         return -1;
     }
 
-    debug_print(3, "Sending delay length to Teensy\n");
     char buffer[BUFMAX];
     memset(buffer, 0, BUFMAX); // Set buffer to all 0's
 
     // Send delay before undervolting
-    sprintf(buffer, "delay %d\n", delay_before_undervolting);
-    int error_check = serialport_write(fd, buffer);
+    sprintf(buffer, ("delay %i\n"), delay_before_undervolting);
+    
+    int error_check = serialport_write(fd_teensy, buffer);
     if (error_check == -1) { // Write to Teensy failed
         return -1;
     }
-    debug_print(3, "Delay sent\n");
+    plundervolt_teensy_read_response(teensy_response_level);
 
     memset(buffer, 0, BUFMAX); // Wipe buffer
     
-    debug_print(3, "Sending glitch configuration to Teensy\n");
     // Send glitch specification
     sprintf(buffer, ("%i %1.4f %i %1.4f %i %1.4f\n"), repeat, start_voltage, duration_start, undervolting_voltage, duration_during, end_voltage);
-    debug_print(1, "Glitch specification: repeat - %d; start - %1.4f V; duration at start - %d; undervolting - %1.4f V; duration - %d; end - %1.4f V\n", repeat, start_voltage, duration_start, undervolting_voltage, duration_during, end_voltage);
     // TODO print arguments, if DEBUGGING
-    error_check = serialport_write(fd, buffer);
+    error_check = serialport_write(fd_teensy, buffer);
     if (error_check == -1) { // Write to Teensy failed
         return -1;
     }
-    debug_print(3, "Glitch configuration sent\n");
-
-    if (debugging_level >= 3) {
-        memset(buffer, 0, BUFMAX); // Wipe buffer
-        serialport_read_lines(fd, buffer, EOL, BUFMAX, 10, 3); // Read response
-        // TODO Why Timeout = 10?
-        debug_print(3, "Teensy response: %s\n", buffer);
-    }
+    plundervolt_teensy_read_response(teensy_response_level);
 
     return PLUNDERVOLT_NO_ERROR;
 }
@@ -466,21 +544,17 @@ void plundervolt_print_error(plundervolt_error_t error) {
 }
 
 int open_file() {
-    debug_print(2, "open_file()\n");
 
-    debug_print(3, "Attempting to open connection\n");
     plundervolt_error_t error_check;
     if (u_spec.u_type == software) { // Software undervolting
         error_check = msr_accessible_check();
     } else { // Hardware undervolting
-        error_check = plundervolt_init_teensy_connection(u_spec.teensy_serial, u_spec.teensy_baudrate);
+        error_check = plundervolt_init_hardware_undervolting(u_spec.teensy_serial, u_spec.trigger_serial, u_spec.teensy_baudrate);
     }
-    debug_print(3, "Connection opened\n");
     return error_check;
 }
 
 int plundervolt_run() {
-    debug_print(2, "plundervolt_run()\n");
 
     if (!initialised) {
         return PLUNDERVOLT_NOT_INITIALISED_ERROR;
@@ -492,57 +566,54 @@ int plundervolt_run() {
         return error_check;
     }
 
-    debug_print(3, "Checking if specification is correct\n");
     error_check = faulty_undervolting_specification();
     if (error_check) {
         return error_check;
     }
-    debug_print(3, "Specification is correct\n");
 
     loop_finished = 0;
 
-    // Create threads
-    // One is for running the function, the other for undervolting.
-    if (u_spec.threads < 1) u_spec.threads = 1;
-    debug_print(3, "Creating threads. Number of threads: %d", u_spec.threads);
-    pthread_t* function_thread = malloc(sizeof(pthread_t) * u_spec.threads);
-    for (int i = 0; i < u_spec.threads; i++) {
-        if (u_spec.loop) {
-            pthread_create(&function_thread[i], NULL, run_function_loop, u_spec.arguments);
-        } else {
-            pthread_create(&function_thread[i], NULL, run_function, u_spec.arguments);
+    if (u_spec.u_type == software) {
+        // Create threads
+        // One is for running the function, the other for undervolting.
+        if (u_spec.threads < 1) u_spec.threads = 1;
+        pthread_t* function_thread = malloc(sizeof(pthread_t) * u_spec.threads);
+        for (int i = 0; i < u_spec.threads; i++) {
+            if (u_spec.loop) {
+                pthread_create(&function_thread[i], NULL, run_function_loop, u_spec.arguments);
+            } else {
+                pthread_create(&function_thread[i], NULL, run_function, u_spec.arguments);
+            }
         }
-    }
-    debug_print(3, "Threads created\n");
 
-    if (u_spec.undervolt) {
-        pthread_t undervolting_thread;
-        debug_print(1, "Undervolting:\n");
-        pthread_create(&undervolting_thread, NULL, plundervolt_apply_undervolting, NULL);
+        if (u_spec.undervolt) {
+            pthread_t undervolting_thread;
+            pthread_create(&undervolting_thread, NULL, plundervolt_apply_undervolting, NULL);
 
-        // Wait until both threads finish
-        pthread_join(undervolting_thread, NULL);
-        debug_print(1, "Undervolting thread joined\n");
-    }
-    debug_print(3, "Joining function threads\n");
-    for (int i = 0; i < u_spec.threads; i++) {
-        pthread_join(function_thread[i], NULL);
-        debug_print(1, "Thread %d joined\n", i);
+            // Wait until both threads finish
+            pthread_join(undervolting_thread, NULL);
+        }
+        for (int i = 0; i < u_spec.threads; i++) {
+            pthread_join(function_thread[i], NULL);
+        }
+
+    } else {
+        // Since apply_undervolting calls u_spec.function itself when doing HARDWARE undervolting, we don't need to do anything else here.
+        // TODO Threads - later version.
+        plundervolt_apply_undervolting();
     }
 
-    debug_print(1, "\nFinished plundervolt run.\n");
     return 0;
 }
 
 void plundervolt_cleanup() {
-    debug_print(2, "plundervolt_cleanup()\n");
 
     if (u_spec.undervolt && u_spec.u_type == software) {
-        debug_print(3, "Resetting voltage\n");
         plundervolt_reset_voltage();
     }
-    debug_print(3, "Closing connection/file\n");
-    close(fd);
+    close(fd_teensy);
+    if (u_spec.using_dtr) {
+        close(fd_trigger);
+    }
 
-    debug_print(1, "Cleaned up.\n");
 }

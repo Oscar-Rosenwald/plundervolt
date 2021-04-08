@@ -33,6 +33,10 @@ typedef struct plundervolt_specification_t {
     /**
      * If the function is to be repeated until fault,
      * loop will = 1.
+     * 
+     * If using Hardware undervolting, and if integrated_loop_check = 0, this contains the number of calls to the given function.
+     * 
+     * So for example, loop = 100 & integrated_loop_check = 0 means function will be called 100 times during every glitch.
      */
     int loop;
     /**
@@ -113,17 +117,28 @@ typedef struct plundervolt_specification_t {
      */
     char* teensy_serial;
     /**
+     * @brief Hardware. The device name for the on-board trigger, which controls Teensy.
+     * Only used if using_dtr is not 0.
+     * 
+     */
+    char* trigger_serial;
+    /**
      * @brief Hardware. Rate of communication with Teensy.
      * 
      */
     int teensy_baudrate;
+    /**
+     * @brief Hardware. >0 when using an onboard DTR trigger. Default is 1.
+     * 
+     */
+    int using_dtr;
     /**
      * @brief Hardware. How many times to repeat the undervolting operation in one iteration.
      * 
      */
     int repeat;
     /**
-     * @brief Hardware. Delay before a new glitch is armed and fired.
+     * @brief Hardware. Delay before a new glitch is armed and fired. Im ms.
      * 
      */
     int delay_before_undervolting;
@@ -160,7 +175,7 @@ typedef struct plundervolt_specification_t {
 } plundervolt_specification_t;
 
 /**
- * @brief This function stops the undervolting loop.
+ * @brief This function stops the undervolting loop in all threads.
  */
 void plundervolt_set_loop_finished();
 
@@ -173,10 +188,15 @@ void plundervolt_set_loop_finished();
  * terminal. Depending on the argument LEVEL, these may only be printed once.
  * 
  * @param level int Controls how much is to be shown:
+ * 
  * - 0 ... Don't print anything;
+ * 
  * - 1 ... Print most relevant information (such as "now undervolting"). Default;
+ * 
  * - 2 ... Print when a function is called, and with what arguments;
+ * 
  * - 3 ... Print also when entering and exiting an operation (such as "glitch armed" or "opening connection to msr");
+ * 
  * - 4 ... Print a statement on every iteration of every loop. WARNING: This will get messy.
  * 
  * The levels are in a hierarchy. So debug statements of level 0 are shown when level set to 1.
@@ -235,6 +255,12 @@ void plundervolt_cleanup();
  */
 void plundervolt_print_error(plundervolt_error_t);
 
+/**
+ * @brief Resets the voltage to normal levels. Use if Software-undervolting, or using onboard DTR Trigger when Hardware-undervolting.
+ * 
+ */
+void plundervolt_reset_voltage();
+
 /************************************************
  ************* Software undervolting ************
  ************************************************/
@@ -262,12 +288,6 @@ double plundervolt_read_voltage();
  */
 void plundervolt_set_undervolting(uint64_t);
 
-/**
- * @brief Resets the voltage to normal levels
- * 
- */
-void plundervolt_reset_voltage();
-
 /************************************************
  ************* Hardware undervolting ************
  ************************************************/
@@ -276,11 +296,28 @@ void plundervolt_reset_voltage();
  * @brief Opens the serial port fd, throwing the appropriate exceptions.
  * 
  * @param teensy_serial char* const Serial port of the Teensy system
+ * @param trigger_serial char* const Serial port for the on-board trigger. Can be anything if !using_dtr.
  * @param teensy_baudrate int Boud rate of the undervolting ?
  * 
  * @return Error message if initialisation of connection with Teensy failed.
  */
-int plundervolt_init_teensy_connection(char* const, int);
+int plundervolt_init_hardware_undervolting(char* const, char* const, int);
+
+// TODO Extend this description.
+/**
+ * @brief Read LINES lines of the response of Teensy after sending it an input if LEVEL is <= debugging_level. See plundervolt_debug.
+ * 
+ */
+void plundervolt_teensy_read_response2(int level, int lines);
+
+void plundervolt_teensy_read_response(int level);
+
+// TODO Documentation
+/**
+ * @brief Hardware. Set at which level to print Teensy's responses. Default is 3
+ * 
+ */
+void plundervolt_set_teensy_response_level(int);
 
 /**
  * @brief Send undervolting configuration to Teensy. This does not arm the glitch. Call "plundervolt_arm_glitch()" after this.
@@ -295,7 +332,7 @@ int plundervolt_init_teensy_connection(char* const, int);
  * 
  * @return Error if connection not initialised, PLUNDERVOLT_NO_ERROR if yes.
  */
-int plundervolt_configure_glitch(int, int, float, int, float, int, float);
+int plundervolt_configure_glitch(int delay_before_undervolting, int repeat, float start_voltage, int duration_start, float undervolting_voltage, int duration_during, float end_voltage);
 
 /**
  * @brief Call after plundervolt_configure_glitch().
@@ -313,5 +350,14 @@ int plundervolt_arm_glitch();
  * @return Error if writing to Teensy failed.
  */
 int plundervolt_fire_glitch();
+
+/************************** DELETE ****************************/
+
+int hwvolt_arm();
+int configure_glitch(int, int, float, int, float, int, float);
+int fire();
+void reset();
+int init(char* const, char* const, int);
+int set_delay(int);
 
 #endif /* PLUNDERVOLT_H */

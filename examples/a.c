@@ -21,9 +21,9 @@
 #include <termios.h>	 // POSIX Terminal Control Definitions
 #include "../lib/arduino/arduino-serial-lib.h"
 
-uint64_t temp_res_1, temp_res_2;
-uint64_t operand1 = num_1;
-uint64_t operand2 = num_2;
+// uint64_t temp_res_1, temp_res_2;
+// uint64_t operand1 = num_1;
+// uint64_t operand2 = num_2;
 int fd_teensy = -1, fd_trigger = -1;
 int DTR_flag = TIOCM_DTR;
 
@@ -53,32 +53,53 @@ int configure_glitch(int repeat, float v1, int d1, float v2, int d2, float v3) {
 		return -1;
 	}
 	memset(buf,0,BUFMAX);  //
-	serialport_read_lines(fd_teensy, buf, EOLCHAR, BUFMAX, TIMEOUT, 3); // Clearing the global buffer
+	serialport_read_lines(fd_teensy, buf, EOLCHAR, BUFMAX, TIMEOUT, 3);
 	printf("resp: %s", buf);
 	return 0;
 }
 
+int fire() {
+	ioctl(fd_trigger,TIOCMBIS,&DTR_flag);
+}
+
+int reset() {
+	ioctl(fd_trigger,TIOCMBIC,&DTR_flag);
+}
+
 int multiply() {
-    int max_iter = 300000;
+    int max_iter = 100000;
     int iterations = 0;
     int fault = 0;
 
-    TRIGGER_SET
+    typedef struct calc_info {
+        uint64_t operand1;
+        uint64_t operand2;
+        uint64_t correct_a;
+        uint64_t correct_b;
+    } calc_info;
+
+    calc_info* in = malloc(sizeof(calc_info));
+
+    in->operand1 = num_1;
+    in->operand2 = num_2;
+
+    fire();
     do {
         iterations++;
 
-        temp_res_1 = operand1 * operand2;
-        temp_res_2 = operand1 * operand2;
-
-        if (temp_res_1 != temp_res_2) {
+        in->correct_a = in->operand1 * in->operand2;
+        in->correct_b = in->operand1 * in->operand2;
+        
+        if (in->correct_a != in->correct_b) {
             fault = 1;
         }
     } while (iterations < max_iter && fault == 0);
-    TRIGGER_RST
+    reset();
 
     if (fault) {
-        printf("Fault: occured.\nMultiplication 1: %016lx\nMultiplication 2: %016lx\n", temp_res_1, temp_res_2);
+        printf("Fault: occured.\nMultiplication 1: %016lx\nMultiplication 2: %016lx\n", in->correct_a, in->correct_b);
     }
+    free(in);
     return fault;
 }
 
@@ -89,7 +110,6 @@ int init(char* const serial, char* const trigger, int baudrate) {
 		return -1;
 	}
 	printf("Trigger serial: opened port %s\n", trigger);
-
 
 	// Create new termios struc, we call it 'tty' for convention
 	struct termios tty;
@@ -186,11 +206,11 @@ int main () {
     int baudrate = 115200;
 
     int repeat = 2;
-    int tries = 15;
+    int tries = 10;
     int delay_before = 200;
     float start_voltage = 1.05;
     int delay_start = 35;
-    float undervolting_voltage = 0.821;
+    float undervolting_voltage = 0.815;
     int delay_during= -30;
     float end_voltage = start_voltage;
 
@@ -217,7 +237,7 @@ int main () {
             v_close();
             return 1;
         }
-        sleep(3);
+        msleep(300);
         printf("\n");
     }
     v_close();

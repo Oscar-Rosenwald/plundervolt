@@ -19,14 +19,10 @@ The following program producess an error, but some tweeks may be necessary to
     - the undervolting start and end
  */
 #include "../lib/plundervolt.h"
-#define HARDWARE // This will perform Hardware undervolting. Comment the line out is you want Software instead.
-#ifdef HARDWARE
-    #define num_1 11403264
-    #define num_2 24
-#else
-    #define num_1 0xAE0000
-    #define num_2 0x18
-#endif
+//#define HARDWARE // This will perform Hardware undervolting. Comment the line out is you want Software instead.
+//#define TESTING // This allows us to find the right voltage for the PC.
+#define num_1 0xAE0000
+#define num_2 0x18
 #define result num_1 * num_2;
 
 /* This controls if other threads go on.
@@ -80,18 +76,20 @@ Original result:  %016lx\n\n", temp_res_1, temp_res_2, check);
 int multiplication_check_hardware() {
     uint64_t temp_res_1, temp_res_2;
     int iterations = 0;
-    int max_iter = 1000000000;
+    int max_iter = 100000;
     uint64_t check = result;
     int fault = 0;
     uint64_t operand1 = num_1;
     uint64_t operand2 = num_2;
 
+    plundervolt_fire_glitch();
+
     do {
         iterations++;
-        printf("multiplication iteration: %d\n", iterations);
+        // printf("multiplication iteration: %d\n", iterations);
         temp_res_1 = operand1 * operand2;
         temp_res_2 = operand1 * operand2;
-        printf("result: %ld\n\n", temp_res_1);
+        // printf("result: %ld\n\n", temp_res_1);
 
         // Stop if we are not undervolting.
         if (!spec.undervolt) {
@@ -99,7 +97,8 @@ int multiplication_check_hardware() {
         }
     } while (temp_res_1 == check && temp_res_2 == check // Fault
             && iterations < max_iter
-            && go_on);
+            && go_on // If another thread faulted, this one stops, too.
+            );
     fault = temp_res_1 != check || temp_res_2 != check;
     if (fault) {
         printf("Fault occured.\nMultiplication 1: %016lx\nMultiplication 2: %016lx\n\
@@ -120,11 +119,11 @@ void multiply() {
         if (multiplication_check_software()) { // This line calls the loop check function.
     #endif
         plundervolt_set_loop_finished(); // This line stops the undervolting process.
-        go_on = 0;
+        go_on = 0; // This is for threads. It stops all loops defined here, which plundervolt_set_loop_finished() doesn't have access to.
     }
 }
 
-int main() {
+void setup() {
     spec = plundervolt_init(); // Initialise the specification to default values.
                                // This is necessary!
     spec.function = multiply; // Set function to undervolt on.
@@ -134,27 +133,14 @@ int main() {
     spec.undervolt = 1; // We do not wish to run this function alone, but undervolt in the process.
     spec.loop = 1; // The function is to be called in a loop.
 
-    #ifdef HARDWARE
-        spec.teensy_serial = "/dev/ttyACM0";
-        // Teensy_baudrate stays the default.
-        spec.repeat = 1000; // Undervolt only once per iteration.
-        spec.delay_before_undervolting = 200;
-        spec.duration_start = 35;
-        spec.duration_during = -30;
-        spec.start_voltage = 1.05;
-        spec.undervolting_voltage = 0.795;
-        spec.end_voltage = spec.start_voltage; // Reset the voltage to the start voltage.
-                                               //This is not necessarily the case with every configuration.
-        spec.tries = 50;
-        spec.wait_time = 300;
-        spec.u_type = hardware;
-    #else
-        spec.start_undervoltage = -100; // Set initial undervolting.
-        spec.end_undervoltage = -230; // Set maximal undervolting.
-        spec.u_type = software; // We want to undervolt softward-wise
-    #endif
+    spec.start_undervoltage = -100; // Set initial undervolting.
+    spec.end_undervoltage = -230; // Set maximal undervolting.
+    spec.u_type = software; // We want to undervolt softward-wise
+}
 
-    plundervolt_debug(1);
+int main() {
+    setup();
+    //plundervolt_debug(1);
 
     printf("Plundervolt specification initialised.\n");
 
@@ -173,6 +159,7 @@ int main() {
         return -1;
     }
     printf("Library finished.\nCleaning up:\n\n");
+
     plundervolt_cleanup(); // Must be called, or memory leakage may occur, and the voltage will be wrong.
     return 0;
 }
