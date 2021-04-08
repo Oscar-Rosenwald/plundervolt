@@ -200,22 +200,24 @@ void* run_function_times (int times, void * arguments) {
     }
 }
 
-void* plundervolt_apply_undervolting() {
-
-    cpu_set_t cpuset;
-    pthread_t thread = pthread_self();
-
-    // TODO What is this?
-    CPU_ZERO(&cpuset);
-    CPU_SET(0, &cpuset);
-
-    int set_affinity = pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
-    if (set_affinity != 0) {
-        // TODO Better error
-    }
+void* plundervolt_apply_undervolting(void *error_maybe) {
+    plundervolt_error_t *error_check_thread = (plundervolt_error_t *) error_maybe;
 
     if (u_spec.u_type == software) {
         // SOFTWARE undervolting
+
+        cpu_set_t cpuset;
+        pthread_t thread = pthread_self();
+        // TODO What is this?
+        CPU_ZERO(&cpuset);
+        CPU_SET(0, &cpuset);
+
+        int set_affinity = pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
+        if (set_affinity != 0) {
+            // TODO Better error
+            *error_check_thread = PLUNDERVOLT_GENERIC_ERROR;
+            pthread_exit(NULL);
+        }
 
         current_undervoltage = u_spec.start_undervoltage;
 
@@ -247,12 +249,16 @@ void* plundervolt_apply_undervolting() {
             if (error_check) { // If not 0
                 plundervolt_set_loop_finished(); // Stops this loop
                 // TODO Handle error
+                *error_check_thread = error_check;
+                pthread_exit(NULL);
             }
 
             error_check = plundervolt_arm_glitch();
             if (error_check) { // If not 0
                 plundervolt_set_loop_finished(); // Stops this loop
                 // TODO Handle error
+                *error_check_thread = error_check;
+                pthread_exit(NULL);
             }
 
             msleep(u_spec.wait_time); // Give the machine time to work.
@@ -271,8 +277,6 @@ void* plundervolt_apply_undervolting() {
                 run_function(u_spec.arguments);
             }
             msleep(u_spec.wait_time);
-        
-
         }
     }
 
@@ -315,9 +319,9 @@ plundervolt_specification_t plundervolt_init () {
     spec.delay_before_undervolting = 0;
     spec.duration_start = 35;
     spec.duration_during = -25; // TODO Why negative?
-    spec.start_undervoltage = 700;
-    spec.undervolting_voltage = 600;
-    spec.end_voltage = 700;
+    spec.start_voltage = 0.900;
+    spec.undervolting_voltage = 0.900;
+    spec.end_voltage = 0.900;
     spec.tries = 1;
     spec.using_dtr = 1;
 
@@ -349,6 +353,13 @@ int faulty_undervolting_specification() {
     if (u_spec.loop && !u_spec.integrated_loop_check && u_spec.stop_loop == NULL) {
         return PLUNDERVOLT_NO_LOOP_CHECK_ERROR;
     }
+    if (u_spec.teensy_serial == "") {
+        return PLUNDERVOLT_NO_TEENSY_SERIAL_ERROR;
+    }
+    if (u_spec.trigger_serial == "") {
+        return PLUNDERVOLT_NO_TRIGGER_SERIAL_ERROR;
+    }
+
     return 0;
 }
 
@@ -536,6 +547,16 @@ void plundervolt_print_error(plundervolt_error_t error) {
         break;
     case PLUNDERVOLT_NOT_INITIALISED_ERROR:
         fprintf(stderr, "Plundervolt specification was not initialised properly.\n");
+    case PLUNDERVOLT_NO_LOOP_CHECK_ERROR:
+        fprintf(stderr, "The specification of who stops the function loop is faulty.\n");
+    case PLUNDERVOLT_WRITE_TO_TEENSY_ERROR:
+        fprintf(stderr, "Cannot write to Teensy for some reason.\n");
+    case PLUNDERVOLT_CONNECTION_INIT_ERROR:
+        fprintf(stderr, "Could not initialise Hardware undervolting correctly.\n");
+    case PLUNDERVOLT_NO_TEENSY_SERIAL_ERROR:
+        fprintf(stderr, "No Teensy serialport provided.\n");
+    case PLUNDERVOLT_NO_TRIGGER_SERIAL_ERROR:
+        fprintf(stderr, "No trigger serialport provided.\n");
     default:
         fprintf(stderr, "Generic error occured.\n");
         break;
@@ -570,6 +591,8 @@ int plundervolt_run() {
 
     loop_finished = 0;
 
+    plundervolt_error_t thread_error = PLUNDERVOLT_NO_ERROR;
+
     if (u_spec.u_type == software) {
         // Create threads
         // One is for running the function, the other for undervolting.
@@ -585,7 +608,7 @@ int plundervolt_run() {
 
         if (u_spec.undervolt) {
             pthread_t undervolting_thread;
-            pthread_create(&undervolting_thread, NULL, plundervolt_apply_undervolting, NULL);
+            pthread_create(&undervolting_thread, NULL, plundervolt_apply_undervolting, (void *) &thread_error);
 
             // Wait until both threads finish
             pthread_join(undervolting_thread, NULL);
@@ -593,13 +616,15 @@ int plundervolt_run() {
         for (int i = 0; i < u_spec.threads; i++) {
             pthread_join(function_thread[i], NULL);
         }
-
     } else {
         // Since apply_undervolting calls u_spec.function itself when doing HARDWARE undervolting, we don't need to do anything else here.
         // TODO Threads - later version.
-        plundervolt_apply_undervolting();
+        plundervolt_apply_undervolting((void *) &thread_error);
     }
 
+    if (thread_error != PLUNDERVOLT_NO_ERROR) {
+        return thread_error;
+    }
     return PLUNDERVOLT_NO_ERROR;
 }
 
