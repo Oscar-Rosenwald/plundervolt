@@ -343,7 +343,7 @@ int faulty_undervolting_specification() {
         return PLUNDERVOLT_NOT_INITIALISED_ERROR;
     }
     if (u_spec.undervolt) {
-        if (u_spec.start_undervoltage <= u_spec.end_undervoltage) {
+        if (u_spec.u_type == software && u_spec.start_undervoltage <= u_spec.end_undervoltage) {
             return PLUNDERVOLT_RANGE_ERROR;
         }
     }
@@ -353,10 +353,10 @@ int faulty_undervolting_specification() {
     if (u_spec.loop && !u_spec.integrated_loop_check && u_spec.stop_loop == NULL) {
         return PLUNDERVOLT_NO_LOOP_CHECK_ERROR;
     }
-    if (u_spec.teensy_serial == "") {
+    if (u_spec.u_type == hardware && u_spec.teensy_serial == "") {
         return PLUNDERVOLT_NO_TEENSY_SERIAL_ERROR;
     }
-    if (u_spec.trigger_serial == "") {
+    if (u_spec.u_type == hardware && u_spec.trigger_serial == "") {
         return PLUNDERVOLT_NO_TRIGGER_SERIAL_ERROR;
     }
 
