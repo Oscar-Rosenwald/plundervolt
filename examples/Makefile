@@ -3,13 +3,13 @@ all: fm_hardware fm_software clean
 
 # main: main.o plundervolt.o arduino-serial-lib.o
 # 	gcc -o main main.o plundervolt.o arduino-serial-lib.o -pthread -lm
-fm_hardware: fm_hardware.o plundervolt.o arduino-serial-lib.o
-	gcc -o fm_hardware fm_hardware.o plundervolt.o arduino-serial-lib.o -pthread -lm
+fm_hardware: faulty_multiplication_hardware.o plundervolt.o arduino-serial-lib.o
+	gcc -o fm_hardware faulty_multiplication_hardware.o plundervolt.o arduino-serial-lib.o -pthread -lm
 
 # main.o: main.c ../lib/plundervolt.h ../lib/arduino/arduino-serial-lib.h
 # 	gcc -c -g main.c
-fm_hardware.o: faulty_multiplication_hardware.c ../lib/plundervolt.h ../lib/arduino/arduino-serial-lib.h
-	gcc -c -g faulty_multiplication_hardware.c -o fm_hardware.o
+faulty_multiplication_hardware.o: faulty_multiplication_hardware.c ../lib/plundervolt.h ../lib/arduino/arduino-serial-lib.h
+	gcc -c -g faulty_multiplication_hardware.c
 
 fm_software: fm_software.o plundervolt.o arduino-serial-lib.o
 	gcc -o fm_software fm_software.o plundervolt.o arduino-serial-lib.o -pthread -lm

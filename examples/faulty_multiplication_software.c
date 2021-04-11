@@ -19,6 +19,7 @@ The following program producess an error, but some tweeks may be necessary to
     - the undervolting start and end
  */
 #include "../lib/plundervolt.h"
+#include <unistd.h>
 //#define HARDWARE // This will perform Hardware undervolting. Comment the line out is you want Software instead.
 //#define TESTING // This allows us to find the right voltage for the PC.
 #define num_1 0xAE0000
@@ -37,6 +38,7 @@ plundervolt_specification_t spec; // This is the specification for the library.
     NOTE: This function does not stop the undervolting, only returns !0 if that is to happen.
 */
 int multiplication_check_software() {
+    printf("Current undervoltage: %ld\n", plundervolt_get_current_undervoltage());
     uint64_t temp_res_1, temp_res_2;
     int iterations = 0;
     int max_iter = 1000000000;
@@ -56,49 +58,10 @@ int multiplication_check_software() {
         if (plundervolt_get_current_undervoltage() <= spec.end_undervoltage || !spec.undervolt) {
             break;
         }
-    } while (temp_res_1 == check && temp_res_2 == check
+    } while (temp_res_1 == check && temp_res_2 == check // Fault hasn't occured.
             && iterations < max_iter
-            && go_on);
+            && go_on); // Other threads haven't stopped the loop.
     
-    fault = temp_res_1 != check || temp_res_2 != check;
-    if (fault) {
-        printf("Fault occured.\nMultiplication 1: %016lx\nMultiplication 2: %016lx\n\
-Original result:  %016lx\n\n", temp_res_1, temp_res_2, check);
-    }
-    return fault;
-}
-
-/*  This function is the loop check. It performs an operation which the user chooses, in this
-        case it is multiplying two numbers and comparing the result to the known correct result,
-        and it is used to check if the undervolting should stop.
-    NOTE: This function does not stop the undervolting, only returns !0 if that is to happen.
-*/
-int multiplication_check_hardware() {
-    uint64_t temp_res_1, temp_res_2;
-    int iterations = 0;
-    int max_iter = 100000;
-    uint64_t check = result;
-    int fault = 0;
-    uint64_t operand1 = num_1;
-    uint64_t operand2 = num_2;
-
-    plundervolt_fire_glitch();
-
-    do {
-        iterations++;
-        // printf("multiplication iteration: %d\n", iterations);
-        temp_res_1 = operand1 * operand2;
-        temp_res_2 = operand1 * operand2;
-        // printf("result: %ld\n\n", temp_res_1);
-
-        // Stop if we are not undervolting.
-        if (!spec.undervolt) {
-            break;
-        }
-    } while (temp_res_1 == check && temp_res_2 == check // Fault
-            && iterations < max_iter
-            && go_on // If another thread faulted, this one stops, too.
-            );
     fault = temp_res_1 != check || temp_res_2 != check;
     if (fault) {
         printf("Fault occured.\nMultiplication 1: %016lx\nMultiplication 2: %016lx\n\
@@ -113,11 +76,7 @@ Original result:  %016lx\n\n", temp_res_1, temp_res_2, check);
         the case. What this function does is up to the user.
 */
 void multiply() {
-    #ifdef HARDWARE
-        if (multiplication_check_hardware()) { // This line calls the loop check function.
-    #else
-        if (multiplication_check_software()) { // This line calls the loop check function.
-    #endif
+    if (multiplication_check_software()) { // This line calls the loop check function.
         plundervolt_set_loop_finished(); // This line stops the undervolting process.
         go_on = 0; // This is for threads. It stops all loops defined here, which plundervolt_set_loop_finished() doesn't have access to.
     }
@@ -133,17 +92,16 @@ void setup() {
     spec.undervolt = 1; // We do not wish to run this function alone, but undervolt in the process.
     spec.loop = 1; // The function is to be called in a loop.
 
-    spec.start_undervoltage = -100; // Set initial undervolting.
+    spec.start_undervoltage = -130; // Set initial undervolting.
     spec.end_undervoltage = -230; // Set maximal undervolting.
+    spec.wait_time = 2000;
     spec.u_type = software; // We want to undervolt softward-wise
 }
 
 int main() {
     setup();
-    //plundervolt_debug(1);
-
     printf("Plundervolt specification initialised.\n");
-
+    
     // We must take care of the possible errors during initialisation.
     plundervolt_error_t error_maybe = plundervolt_set_specification(spec);
     if (error_maybe) {

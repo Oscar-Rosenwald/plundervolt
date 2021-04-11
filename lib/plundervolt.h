@@ -10,8 +10,16 @@
  ********************* General ******************
  ************************************************/
 
+/**
+ * @brief Determines the type of undervolting to perform. plundervolt_specificaion_t is a type struct, which holds u_type, and that takes one of those values.
+ * 
+ */
 typedef enum {software, hardware} undervolting_type;
 
+/**
+ * @brief Error codes for the library.
+ * 
+ */
 typedef enum {
     PLUNDERVOLT_NO_ERROR = 0,
     PLUNDERVOLT_GENERIC_ERROR = 1,
@@ -44,13 +52,13 @@ typedef struct plundervolt_specification_t {
      */
     int loop;
     /**
-     * @brief Number of threads to use. (0 is same as 1)
+     * @brief Number of threads to use for calling the function. (0 is same as 1)
      */
     int threads;
     /**
      * @brief Fuction which the user wishes to undervolt on. Its arguments are stored in a 
      * user-defined structure and passed as a void pointer. The function must cast this pointer
-     * to said structure.
+     * to said structure in order to use these arguments.
      */
     void (* function)(void *);
     /** 
@@ -60,8 +68,8 @@ typedef struct plundervolt_specification_t {
      */
     void * arguments;
     /**
-     * @brief > 0 if the user's function contains loop checks itself.
-     * NOTE: If it does, it must work with the shared variable loop_finished.
+     * @brief > 0 if the user's function contains loop checks itself. i.e. if the function itself checks when to stop undervolting and calling the function in a loop.
+     * NOTE: If it does, it must work with the shared variable loop_finished via plundervolt_set_loop_finished().
      */
     int integrated_loop_check; 
     /**
@@ -72,7 +80,7 @@ typedef struct plundervolt_specification_t {
      */
     int (* stop_loop) (void *); 
     /**
-     * @brief Pointer to the structure of arguments for stop_loop.
+     * @brief Pointer to the user-defined structure of arguments for stop_loop.
      */
     void * loop_check_arguments;
     /**
@@ -81,11 +89,10 @@ typedef struct plundervolt_specification_t {
      */
     int undervolt;
     /**
-     * @brief Time for which the undervolting halts on each iteration. It is a rough estimate in
-     * software undervolting. In ms.
+     * @brief Time for which the undervolting halts on each iteration, i.e. the time undervolting is given to work before a new iteration is called. Gives the system time to adjust to the new voltage. In ms.
      * 
      */
-    int wait_time; // TODO inconsisten usage - software is waiting during undervolting, hardware waiting inbetween.
+    int wait_time;
     /**
      * @brief Type of undervolting to do - Hardware or Software
      */
@@ -96,7 +103,7 @@ typedef struct plundervolt_specification_t {
     /**
      * @brief Software. Undervoltage to begin on.
      * For example: start_undervolting = -100 will start undervolting -100 mV,
-     * not at -100mV.
+     * not AT -100mV.
      * 
      */
     uint64_t start_undervoltage;
@@ -108,8 +115,7 @@ typedef struct plundervolt_specification_t {
      */
     uint64_t end_undervoltage;
     /**
-     * @brief Software. How many mV we jump by.
-     * We may not use steps (later versions); 0 = "false"
+     * @brief Software. How many mV we jump by when going from start_undervoltage to end_undervoltage.
      */
     int step;
 
@@ -142,7 +148,7 @@ typedef struct plundervolt_specification_t {
      */
     int repeat;
     /**
-     * @brief Hardware. Delay before a new glitch is armed and fired. Im ms.
+     * @brief Hardware. Delay before a new glitch is fired. Im ms.
      * 
      */
     int delay_before_undervolting;
@@ -183,7 +189,7 @@ typedef struct plundervolt_specification_t {
  */
 void plundervolt_set_loop_finished();
 
-/**
+/* /**
  * @brief When the user wants to debug, they must call this function first.
  * Print statements are placed throughout the code, and the user will see
  * exactly what is happening, which methods are called with what arguments,
@@ -204,8 +210,8 @@ void plundervolt_set_loop_finished();
  * - 4 ... Print a statement on every iteration of every loop. WARNING: This will get messy.
  * 
  * The levels are in a hierarchy. So debug statements of level 0 are shown when level set to 1.
- */
-void plundervolt_debug(int level);
+ 
+void plundervolt_debug(int level); */
 
 /**
  * @return uint64_t Current undervoltage in mV.
@@ -214,7 +220,7 @@ uint64_t plundervolt_get_current_undervoltage();
 
 /**
  * @brief Create a plundervolt_specification_t structure and fill it with default values.
- * This function must be called before calling plundervolt_set_specification.
+ * This function must be called before calling plundervolt_set_specification and plundervolt_run.
  * 
  * @return A plundervolt_specivication_t object with default values.
  */
@@ -225,13 +231,13 @@ plundervolt_specification_t plundervolt_init();
  * Must be called after plundervolt_init().
  * 
  * @param spec plundervolt_specification_t Specification to be set to.
- * @return int 0 if no error, PLUNDERVOLT_NOT_INITIALISED_ERROR otherwise.
+ * @return plundervolt_error_t PLUNDERVOLT_NO_ERROR if plundervolt_init() was called before, PLUNDERVOLT_NOT_INITIALISED_ERROR otherwise.
  */
-int plundervolt_set_specification(plundervolt_specification_t);
+plundervolt_error_t plundervolt_set_specification(plundervolt_specification_t spec);
 
 /**
  * @brief Performs the undervolting according to specification.
- * It ought to run in a separate thread
+ * In Software undervolting, it ought to run in a separate thread.
  * 
  * @return void* Must return something, as pthread_create requires a void* return value. Returns NULL.
  */
@@ -239,11 +245,11 @@ void* plundervolt_apply_undervolting();
 
 /**
  * @brief The main function of the undervolting library. It creates threads, runs given functions,
- * possibly in a loop, and checks the conditions for stopping the loops, all according to specifications.
+ * possibly in a loop, and checks the conditions for stopping the loops, all according to specifications. User may or may not wish to use this function.
  * 
- * @return int 0 if OK, error code if otherwise.
+ * @return plundervolt_error_t Appropriate error code, or PLUNDERVOLT_NO_ERROR
  */
-int plundervolt_run();
+plundervolt_error_t plundervolt_run();
 
 /**
  * @brief A function to be called at the end of the library usage.
@@ -253,14 +259,14 @@ int plundervolt_run();
 void plundervolt_cleanup();
 
 /**
- * @brief Prints the appropriate message to the plundervolt error passed as argument.
+ * @brief Prints the appropriate message to the plundervolt_error_t passed as argument.
  * 
  * @param error plundervolt_error_t The error to translate.
  */
-void plundervolt_print_error(plundervolt_error_t);
+void plundervolt_print_error(plundervolt_error_t error);
 
 /**
- * @brief Resets the voltage to normal levels. Use if Software-undervolting, or using onboard DTR Trigger when Hardware-undervolting.
+ * @brief Resets the voltage to normal levels. Use if Software undervolting, or using onboard DTR Trigger when Hardware-undervolting.
  * 
  */
 void plundervolt_reset_voltage();
@@ -274,12 +280,12 @@ void plundervolt_reset_voltage();
  * 
  * @param value Value to be turned into the result
  * @param plane A plane index 
- * @return uint64_t 
+ * @return uint64_t The value to write to cpu/0/msr
  */
-uint64_t plundervolt_compute_msr_value(int64_t, uint64_t);
+uint64_t plundervolt_compute_msr_value(int64_t value, uint64_t plane);
 
 /**
- * @brief Reads the current voltage
+ * @brief Reads the current voltage if using Software undervolting.
  * 
  * @return double Current voltage as read from fd.
  */
@@ -290,43 +296,33 @@ double plundervolt_read_voltage();
  * 
  * @param value uint64_t value of the new undervoltage.
  */
-void plundervolt_set_undervolting(uint64_t);
+void plundervolt_set_undervolting(uint64_t value);
 
 /************************************************
  ************* Hardware undervolting ************
  ************************************************/
 
 /**
- * @brief Opens the serial port fd, throwing the appropriate exceptions.
+ * @brief Opens the serial port(s) fd_teensy (and fd_trigger if applicable - see plundervolt_specification_t), throwing the appropriate exceptions.
  * 
  * @param teensy_serial char* const Serial port of the Teensy system
  * @param trigger_serial char* const Serial port for the on-board trigger. Can be anything if !using_dtr.
- * @param teensy_baudrate int Boud rate of the undervolting ?
+ * @param teensy_baudrate int Boud rate of the undervolting
  * 
  * @return Error message if initialisation of connection with Teensy failed.
  */
-int plundervolt_init_hardware_undervolting(char* const, char* const, int);
+plundervolt_error_t plundervolt_init_hardware_undervolting(char* const teensy_serial, char* const trigger_serial, int teensy_baudrate);
 
-// TODO Extend this description.
 /**
- * @brief Read LINES lines of the response of Teensy after sending it an input if LEVEL is <= debugging_level. See plundervolt_debug.
+ * @brief Read response from Teensy and print it out.
  * 
  */
-void plundervolt_teensy_read_response2(int level, int lines);
-
-void plundervolt_teensy_read_response(int level);
-
-// TODO Documentation
-/**
- * @brief Hardware. Set at which level to print Teensy's responses. Default is 3
- * 
- */
-void plundervolt_set_teensy_response_level(int);
+void plundervolt_teensy_read_response();
 
 /**
  * @brief Send undervolting configuration to Teensy. This does not arm the glitch. Call "plundervolt_arm_glitch()" after this.
  * 
- * @param delay_before_undervolting How many microseconds (?) to wait before the operation is started
+ * @param delay_before_undervolting How many miliseconds to wait before the operation is started
  * @param repeat How many times to repeat the undervolting
  * @param start_voltage Voltage at the beginning of the operation
  * @param duration_start Delay between start_voltage and undervolting_voltage
@@ -336,7 +332,7 @@ void plundervolt_set_teensy_response_level(int);
  * 
  * @return Error if connection not initialised, PLUNDERVOLT_NO_ERROR if yes.
  */
-int plundervolt_configure_glitch(int delay_before_undervolting, int repeat, float start_voltage, int duration_start, float undervolting_voltage, int duration_during, float end_voltage);
+plundervolt_error_t plundervolt_configure_glitch(int delay_before_undervolting, int repeat, float start_voltage, int duration_start, float undervolting_voltage, int duration_during, float end_voltage);
 
 /**
  * @brief Call after plundervolt_configure_glitch().
@@ -345,23 +341,14 @@ int plundervolt_configure_glitch(int delay_before_undervolting, int repeat, floa
  * 
  * @return Error if connection not initialised, PLUNDERVOLT_NO_ERROR if yes.
  */
-int plundervolt_arm_glitch();
+plundervolt_error_t plundervolt_arm_glitch();
 
 /**
- * @brief Send an EOL character to the Teensy system to indicate end of input.
+ * @brief Send an EOL character to the Teensy system to indicate end of input, or activate the onboard trigger DTR if using_dtr = 1.
  * This will start the undervolting.
  * 
  * @return Error if writing to Teensy failed.
  */
-int plundervolt_fire_glitch();
-
-/************************** DELETE ****************************/
-
-int hwvolt_arm();
-int configure_glitch(int, int, float, int, float, int, float);
-int fire();
-void reset();
-int init(char* const, char* const, int);
-int set_delay(int);
+plundervolt_error_t plundervolt_fire_glitch();
 
 #endif /* PLUNDERVOLT_H */

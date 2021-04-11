@@ -39,12 +39,12 @@ void multiply() {
             fault = 1;
             go_on = 0;
         }
-    } while (iterations < max_iter && fault == 0 && go_on);
+    } while (iterations < max_iter && fault == 0
+            && go_on); // Other threads (if there are any) will stop now.
     plundervolt_reset_voltage(); // Set the voltage to what it was before.
     // This is a misnomer. We aren't resetting the voltage here, but the pins connected to Teensy.
     // The voltage is reset automatically.
-    // TODO Is that right?
-    // This function is used, however, as it must be called after SOFTWARE undervolting, so it makes sense
+    // This function is used anyway, as the same must be called after SOFTWARE undervolting, so it makes sense
     // it would be called after HARDWARE as well.
 
     if (fault) {
@@ -87,10 +87,9 @@ void setup() {
 
 int main() {
     setup();
-    //plundervolt_debug(1);
-    //plundervolt_set_teensy_response_level(1);
     plundervolt_error_t error_maybe;
 
+    // This finds the right voltage to undervolt on. Parameters are largly arbitrary, more precisely tuned for our test PC's
     for (int i = 0; i < 10; i++) {
         spec.undervolting_voltage -= 0.002; // Change the voltage during undervolting
         plundervolt_set_specification(spec); // Make library see the changes.
@@ -112,4 +111,5 @@ int main() {
 
     plundervolt_cleanup();
     printf("End. No fault.\n");
+    return 0;
 }
