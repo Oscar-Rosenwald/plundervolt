@@ -196,11 +196,12 @@ void* plundervolt_apply_undervolting(void *error_maybe) {
         int error_check;
         int iterations = 0;
 
+        plundervolt_reset_voltage();
+        plundervolt_fire_glitch();
+        plundervolt_reset_voltage();
+        
         while (!loop_finished && iterations < u_spec.tries) {
             // This will make the system respond faster
-            plundervolt_reset_voltage();
-            plundervolt_fire_glitch();
-            plundervolt_reset_voltage();
 
             iterations++;
 

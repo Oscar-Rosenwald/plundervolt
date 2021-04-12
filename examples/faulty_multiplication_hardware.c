@@ -11,7 +11,7 @@ plundervolt_specification_t spec;
 int fault = 0;
 
 void multiply() {
-    int max_iter = 300000;
+    int max_iter = 100000;
     int iterations = 0;
 
     typedef struct calc_info {
@@ -25,6 +25,8 @@ void multiply() {
 
     in->operand1 = num_1;
     in->operand2 = num_2;
+
+    printf("Starting a run of multiplications\n");
 
     plundervolt_fire_glitch(); // This tells Teensy to start the operation.
     // NOTE: We must use this in this function, because we are using HARDWARE undervolting.
@@ -46,6 +48,8 @@ void multiply() {
     // The voltage is reset automatically.
     // This function is used anyway, as the same must be called after SOFTWARE undervolting, so it makes sense
     // it would be called after HARDWARE as well.
+
+    printf("Run ended\n");
 
     if (fault) {
         printf("Fault: occured.\nMultiplication 1: %016lx\nMultiplication 2: %016lx\n", in->correct_a, in->correct_b);
@@ -80,7 +84,7 @@ void setup() {
     spec.duration_start = 35;
     spec.duration_during = -30;
     spec.start_voltage = 1.05;
-    spec.undervolting_voltage = 0.815; // This value is to be changed. Main() decrements it, until the right voltage is found.
+    spec.undervolting_voltage = 0.831; // This value is to be changed. Main() decrements it, until the right voltage is found.
     spec.end_voltage = spec.start_voltage; // Return to the same voltage as you started.
     spec.tries = 1; // Since we loop ourselves, we don't need more than one try per plundervolt_run() call.
 }
@@ -90,14 +94,14 @@ int main() {
     plundervolt_error_t error_maybe;
 
     // This finds the right voltage to undervolt on. Parameters are largly arbitrary, more precisely tuned for our test PC's
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 20; i++) {
         spec.undervolting_voltage -= 0.002; // Change the voltage during undervolting
         plundervolt_set_specification(spec); // Make library see the changes.
 
         printf("Iteration. Voltage: %f\n", spec.undervolting_voltage);
 
         error_maybe = plundervolt_run();
-        if (error_maybe) {
+        if (error_maybe != PLUNDERVOLT_NO_ERROR) {
             plundervolt_print_error(error_maybe);
             return -1;
         }
@@ -105,6 +109,7 @@ int main() {
         // If the function in this iteration found a fault, stop the loop early and exit.
         // The voltage needed to fault will be printed out.
         if (fault) {
+            plundervolt_cleanup();
             return 0;
         }
     }
