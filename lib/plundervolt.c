@@ -67,12 +67,6 @@ plundervolt_error_t faulty_undervolting_specification();
  */
 plundervolt_error_t msr_accessible_check();
 /**
- * @brief Sets fd, fd_teensy, and fd_trigger. If Software undervolting (u_spec.u_type = software), connect fd to /dev/cpu/0/msr. If Hardware undervolting (u_spec.u_type = hardware), connect fd_teensy to Teensy. If Hardware undervolting and also using Trigger (u_spec.using_dtr = 1), also connect fd_trigger to the onboard DTR trigger.
- * 
- * @return plundervolt_error_t PLUNDERVOLT_NO_ERROR if connection(s) opened. If not, returns the appropriate error for what happened.
- */
-plundervolt_error_t open_file();
-/**
  * @brief Run function u_spec.function with arguments given number of times.
  * 
  * @param times How many times to repeat the function.
@@ -206,7 +200,7 @@ void* plundervolt_apply_undervolting(void *error_maybe) {
             iterations++;
 
             // First configure the system.
-            error_check = plundervolt_configure_glitch(u_spec.delay_before_undervolting, u_spec.repeat, u_spec.start_voltage, u_spec.duration_start, u_spec.undervolting_voltage, u_spec.duration_during, u_spec.end_voltage);
+            error_check = plundervolt_configure_glitch();
             if (error_check) { // If not 0
                 plundervolt_set_loop_finished(); // Stops this loop
                 *error_check_thread = error_check;
@@ -446,7 +440,7 @@ plundervolt_error_t set_delay(int delay) {
     return PLUNDERVOLT_NO_ERROR;
 }
 
-plundervolt_error_t plundervolt_configure_glitch(int delay_before_undervolting, int repeat, float start_voltage, int duration_start, float undervolting_voltage, int duration_during, float end_voltage) {
+plundervolt_error_t plundervolt_configure_glitch() {
     if (fd_teensy == -1) { // Teensy not opened properly
         return PLUNDERVOLT_CONNECTION_INIT_ERROR;
     }
@@ -455,7 +449,7 @@ plundervolt_error_t plundervolt_configure_glitch(int delay_before_undervolting, 
     memset(buffer, 0, BUFMAX); // Wipe buffer
 
     // Send delay before undervolting
-    sprintf(buffer, ("delay %i\n"), delay_before_undervolting);
+    sprintf(buffer, ("delay %i\n"), u_spec.delay_before_undervolting);
     
     int error_check = serialport_write(fd_teensy, buffer);
     if (error_check == -1) { // Write to Teensy failed
@@ -466,7 +460,7 @@ plundervolt_error_t plundervolt_configure_glitch(int delay_before_undervolting, 
     memset(buffer, 0, BUFMAX); // Wipe buffer
     
     // Send glitch specification
-    sprintf(buffer, ("%i %1.4f %i %1.4f %i %1.4f\n"), repeat, start_voltage, duration_start, undervolting_voltage, duration_during, end_voltage);
+    sprintf(buffer, ("%i %1.4f %i %1.4f %i %1.4f\n"), u_spec.repeat, u_spec.start_voltage, u_spec.duration_start, u_spec.undervolting_voltage, u_spec.duration_during, u_spec.end_voltage);
     error_check = serialport_write(fd_teensy, buffer);
     if (error_check == -1) { // Write to Teensy failed
         return PLUNDERVOLT_WRITE_TO_TEENSY_ERROR;
@@ -477,38 +471,37 @@ plundervolt_error_t plundervolt_configure_glitch(int delay_before_undervolting, 
 }
 
 void plundervolt_print_error(plundervolt_error_t error) {
+    fprintf(stderr, "%s\n", plundervolt_error2str(error));
+}
+
+const char* plundervolt_error2str(plundervolt_error_t error) {
     switch (error)
     {
     case PLUNDERVOLT_RANGE_ERROR:
-        fprintf(stderr, "Start undervolting is smaller than end undervolting.\n");
-        break;
+        return "Start undervolting is smaller than end undervolting.";
     case PLUNDERVOLT_CANNOT_ACCESS_MSR_ERROR:
-        fprintf(stderr, "Could not open /dev/cpu/0/msr\n\
-            Run sudo modprobe msr first, and run this function with sudo priviliges.\n");
-        break;
+        return "Could not open /dev/cpu/0/msr\n\
+            Run sudo modprobe msr first, and run this function with sudo priviliges.";
     case PLUNDERVOLT_NO_FUNCTION_ERROR:
-        fprintf(stderr, "No function to undervolt on is provided.\n");
-        break;
+        return "No function to undervolt on is provided.";
     case PLUNDERVOLT_NO_LOOP_CHECK_ERROR:
-        fprintf(stderr, "No function to stop undervolting is provided, and integrated_loop_check is set to 0.\n");
-        break;
+        return "No function to stop undervolting is provided, and integrated_loop_check is set to 0.";
     case PLUNDERVOLT_NOT_INITIALISED_ERROR:
-        fprintf(stderr, "Plundervolt specification was not initialised properly.\n");
+        return "Plundervolt specification was not initialised properly.";
     case PLUNDERVOLT_WRITE_TO_TEENSY_ERROR:
-        fprintf(stderr, "Cannot write to Teensy for some reason.\n");
+        return "Cannot write to Teensy for some reason.";
     case PLUNDERVOLT_CONNECTION_INIT_ERROR:
-        fprintf(stderr, "Could not initialise Hardware undervolting correctly.\n");
+        return "Could not initialise Hardware undervolting correctly.";
     case PLUNDERVOLT_NO_TEENSY_SERIAL_ERROR:
-        fprintf(stderr, "No Teensy serialport provided.\n");
+        return "No Teensy serialport provided.";
     case PLUNDERVOLT_NO_TRIGGER_SERIAL_ERROR:
-        fprintf(stderr, "No trigger serialport provided.\n");
+        return "No trigger serialport provided.";
     default:
-        fprintf(stderr, "Generic error occured.\n");
-        break;
+        return "Generic error occured.";
     }
 }
 
-plundervolt_error_t open_file() {
+plundervolt_error_t plundervolt_open_file() {
     plundervolt_error_t error_check;
     if (u_spec.u_type == software) { // Software undervolting
         error_check = msr_accessible_check();
@@ -524,7 +517,7 @@ plundervolt_error_t plundervolt_run() {
     }
     // Open file connedtion
     // Either access /dev/cpu/0/msr, or open Teensy connection
-    plundervolt_error_t error_check = open_file();
+    plundervolt_error_t error_check = plundervolt_open_file();
     if (error_check) { // If msr_file != 0, it is an error code.
         return error_check;
     }

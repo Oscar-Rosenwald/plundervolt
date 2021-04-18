@@ -52,10 +52,6 @@ typedef struct plundervolt_specification_t {
      */
     int loop;
     /**
-     * @brief Number of threads to use for calling the function. (0 is same as 1)
-     */
-    int threads;
-    /**
      * @brief Fuction which the user wishes to undervolt on. Its arguments are stored in a 
      * user-defined structure and passed as a void pointer. The function must cast this pointer
      * to said structure in order to use these arguments.
@@ -107,6 +103,10 @@ typedef struct plundervolt_specification_t {
      * 
      */
     uint64_t start_undervoltage;
+    /**
+     * @brief Software. Number of threads to use for calling the function. (0 is same as 1)
+     */
+    int threads;
     /**
      * @brief Software. Lowest acceptable undervoltage.
      * Must be smaller than start_undervoltage. It does not mean the absolute voltage of the CPU,
@@ -214,11 +214,6 @@ void plundervolt_set_loop_finished();
 void plundervolt_debug(int level); */
 
 /**
- * @return uint64_t Current undervoltage in mV.
- */
-uint64_t plundervolt_get_current_undervoltage();
-
-/**
  * @brief Create a plundervolt_specification_t structure and fill it with default values.
  * This function must be called before calling plundervolt_set_specification and plundervolt_run.
  * 
@@ -266,10 +261,24 @@ void plundervolt_cleanup();
 void plundervolt_print_error(plundervolt_error_t error);
 
 /**
+ * @brief Turns the given error into a string.
+ * 
+ * @param error Error to convert to string.
+ * @return char* Pointer to the return string.
+ */
+const char* plundervolt_error2str(plundervolt_error_t error);
+
+/**
  * @brief Resets the voltage to normal levels. Use if Software undervolting, or using onboard DTR Trigger when Hardware-undervolting.
  * 
  */
 void plundervolt_reset_voltage();
+/**
+ * @brief Sets fd, fd_teensy, and fd_trigger. If Software undervolting (u_spec.u_type = software), connect fd to /dev/cpu/0/msr. If Hardware undervolting (u_spec.u_type = hardware), connect fd_teensy to Teensy. If Hardware undervolting and also using Trigger (u_spec.using_dtr = 1), also connect fd_trigger to the onboard DTR trigger.
+ * 
+ * @return plundervolt_error_t PLUNDERVOLT_NO_ERROR if connection(s) opened. If not, returns the appropriate error for what happened.
+ */
+plundervolt_error_t plundervolt_open_file();
 
 /************************************************
  ************* Software undervolting ************
@@ -298,6 +307,11 @@ double plundervolt_read_voltage();
  */
 void plundervolt_set_undervolting(uint64_t value);
 
+/**
+ * @return uint64_t Current undervoltage in mV.
+ */
+uint64_t plundervolt_get_current_undervoltage();
+
 /************************************************
  ************* Hardware undervolting ************
  ************************************************/
@@ -321,6 +335,7 @@ void plundervolt_teensy_read_response();
 
 /**
  * @brief Send undervolting configuration to Teensy. This does not arm the glitch. Call "plundervolt_arm_glitch()" after this.
+ * It uses the following parameters in the user specification:
  * 
  * @param delay_before_undervolting How many miliseconds to wait before the operation is started
  * @param repeat How many times to repeat the undervolting
@@ -332,7 +347,7 @@ void plundervolt_teensy_read_response();
  * 
  * @return Error if connection not initialised, PLUNDERVOLT_NO_ERROR if yes.
  */
-plundervolt_error_t plundervolt_configure_glitch(int delay_before_undervolting, int repeat, float start_voltage, int duration_start, float undervolting_voltage, int duration_during, float end_voltage);
+plundervolt_error_t plundervolt_configure_glitch();
 
 /**
  * @brief Call after plundervolt_configure_glitch().
