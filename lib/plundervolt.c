@@ -156,6 +156,11 @@ void* run_function_times (int times, void * arguments) {
     }
 }
 
+void plundervolt_software_undervolt(uint64_t new_undervoltage) {
+    plundervolt_set_undervolting(plundervolt_compute_msr_value(new_undervoltage, 0));
+    plundervolt_set_undervolting(plundervolt_compute_msr_value(new_undervoltage, 2));
+}
+
 void* plundervolt_apply_undervolting(void *error_maybe) {
     plundervolt_error_t *error_check_thread = (plundervolt_error_t *) error_maybe; // Used to send errors from a thread.
 
@@ -179,8 +184,7 @@ void* plundervolt_apply_undervolting(void *error_maybe) {
 
         while(u_spec.end_undervoltage <= current_undervoltage && !loop_finished) {
             // Both lines are necessary.
-            plundervolt_set_undervolting(plundervolt_compute_msr_value(current_undervoltage, 0));
-            plundervolt_set_undervolting(plundervolt_compute_msr_value(current_undervoltage, 2));
+            plundervolt_software_undervolt(current_undervoltage);
             msleep(u_spec.wait_time);
             current_undervoltage -= u_spec.step;
         }
@@ -289,6 +293,10 @@ plundervolt_error_t plundervolt_set_specification(plundervolt_specification_t sp
         return PLUNDERVOLT_NOT_INITIALISED_ERROR;
     }
     u_spec = spec;
+    plundervolt_error_t error_check = faulty_undervolting_specification();
+    if (error_check) {
+        return error_check;
+    }
     return PLUNDERVOLT_NO_ERROR;
 }
 

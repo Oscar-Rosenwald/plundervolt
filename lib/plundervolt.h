@@ -294,6 +294,13 @@ plundervolt_error_t plundervolt_open_file();
 uint64_t plundervolt_compute_msr_value(int64_t value, uint64_t plane);
 
 /**
+ * @brief Software. Set new undervolting.
+ * 
+ * @param new_voltage Undervolting to set.
+ */
+void plundervolt_software_undervolt(uint64_t new_undervoltage);
+
+/**
  * @brief Reads the current voltage if using Software undervolting.
  * 
  * @return double Current voltage as read from fd.
