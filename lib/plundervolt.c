@@ -75,6 +75,7 @@ uint64_t plundervolt_get_current_undervoltage() {
 }
 
 void plundervolt_set_loop_finished() {
+    printf("Loop is finished.\n");
     loop_finished = 1;
 }
 
@@ -181,6 +182,7 @@ void* plundervolt_apply_undervolting(void *error_maybe) {
         int error_check;
         int iterations = 0;
 
+        // This makes the reaction time a little smaller.
         plundervolt_reset_voltage();
         plundervolt_fire_glitch();
         plundervolt_reset_voltage();
@@ -227,6 +229,11 @@ void* plundervolt_apply_undervolting(void *error_maybe) {
 
     plundervolt_set_loop_finished();
     return NULL; // Must return something, as pthread_create requires a void* return value.
+}
+
+int plundervolt_loop_is_running() {
+    printf("Loop: %d\n", loop_finished);
+    return !loop_finished; // Returns the opposite of loop_finished, as it is checking if loop is RUNNING.
 }
 
 void plundervolt_reset_voltage() {

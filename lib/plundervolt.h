@@ -196,6 +196,13 @@ plundervolt_error_t plundervolt_faulty_undervolting_specification();
  */
 void plundervolt_set_loop_finished();
 
+/**
+ * @brief Returns the state of loops in the library based on the private global variable loop_finished (0 if plundervolt_set_loop_finished() was called).
+ * 
+ * @return int 0 if no loops are running (e.i., loop_finished is 1), 1 otherwise.
+ */
+int plundervolt_loop_is_running();
+
 /* /**
  * @brief When the user wants to debug, they must call this function first.
  * Print statements are placed throughout the code, and the user will see

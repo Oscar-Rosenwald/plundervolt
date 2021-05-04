@@ -38,7 +38,8 @@ plundervolt_specification_t spec; // This is the specification for the library.
     NOTE: This function does not stop the undervolting, only returns !0 if that is to happen.
 */
 int multiplication_check() {
-    printf("Current undervoltage: %ld\n", plundervolt_get_current_undervoltage());
+    uint64_t volt = plundervolt_get_current_undervoltage();
+    printf("Current undervoltage: %ld\n", volt);
     uint64_t temp_res_1, temp_res_2;
     int iterations = 0;
     int max_iter = 1000000000;
@@ -55,7 +56,7 @@ int multiplication_check() {
         //      - we are undervolting (spec.undervolt) and volgate
         //        hit the limit; OR
         //      - we are not undervolting.
-        if (plundervolt_get_current_undervoltage() <= spec.end_undervoltage || !spec.undervolt) {
+        if (volt <= spec.end_undervoltage || !spec.undervolt) {
             break;
         }
     } while (temp_res_1 == check && temp_res_2 == check // Fault hasn't occured.
@@ -76,10 +77,13 @@ Original result:  %016lx\nundervoltage: %ld mV\n\n", temp_res_1, temp_res_2, che
         the case. What this function does is up to the user.
 */
 void multiply() {
-    if (multiplication_check()) { // This line calls the loop check function.
+    int loop_running = plundervolt_loop_is_running();
+    printf("loop_is_running: %d\n", loop_running);
+    if (multiplication_check() || !loop_running) { // This line calls the loop check function.
         plundervolt_set_loop_finished(); // This line stops the undervolting process.
         go_on = 0; // This is for threads. It stops all loops defined here, which plundervolt_set_loop_finished() doesn't have access to.
     }
+    sleep(0.3); // This is necessary due to (we believe) some assembly-level pre-computation missteps.
 }
 
 void setup() {
@@ -93,7 +97,7 @@ void setup() {
     spec.loop = 1; // The function is to be called in a loop.
 
     spec.start_undervoltage = -130; // Set initial undervolting.
-    spec.end_undervoltage = -230; // Set maximal undervolting.
+    spec.end_undervoltage = -133; // Set maximal undervolting.
     spec.wait_time = 2000;
     spec.u_type = software; // We want to undervolt softward-wise
 }
