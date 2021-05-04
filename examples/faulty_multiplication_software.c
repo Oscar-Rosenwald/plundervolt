@@ -23,7 +23,7 @@ The following program producess an error, but some tweeks may be necessary to
 //#define HARDWARE // This will perform Hardware undervolting. Comment the line out is you want Software instead.
 //#define TESTING // This allows us to find the right voltage for the PC.
 #define num_1 0xAE0000
-#define num_2 0x18
+#define num_2 0xF
 #define result num_1 * num_2;
 
 /* This controls if other threads go on.

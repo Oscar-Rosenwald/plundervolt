@@ -535,6 +535,7 @@ plundervolt_error_t plundervolt_run() {
         for (int i = 0; i < u_spec.threads; i++) {
             pthread_join(function_thread[i], NULL); // Wait for all threads to end.
         }
+        plundervolt_reset_voltage();
     } else {
         // Since apply_undervolting calls u_spec.function itself when doing HARDWARE undervolting, we don't need to do anything else here.
         if (u_spec.undervolt) {
