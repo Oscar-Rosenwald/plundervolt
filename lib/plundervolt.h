@@ -185,6 +185,13 @@ typedef struct plundervolt_specification_t {
 } plundervolt_specification_t;
 
 /**
+ * @brief Check if u_spec was given in the corect format.
+ * 
+ * @return plundervolt_error_t PLUNDERVOLT_NO_ERROR if all is OK. If not, return an error code.
+ */
+plundervolt_error_t plundervolt_faulty_undervolting_specification();
+
+/**
  * @brief This function stops the undervolting loop in all threads.
  */
 void plundervolt_set_loop_finished();
@@ -273,6 +280,7 @@ const char* plundervolt_error2str(plundervolt_error_t error);
  * 
  */
 void plundervolt_reset_voltage();
+
 /**
  * @brief Sets fd, fd_teensy, and fd_trigger. If Software undervolting (u_spec.u_type = software), connect fd to /dev/cpu/0/msr. If Hardware undervolting (u_spec.u_type = hardware), connect fd_teensy to Teensy. If Hardware undervolting and also using Trigger (u_spec.using_dtr = 1), also connect fd_trigger to the onboard DTR trigger.
  * 
@@ -326,13 +334,9 @@ uint64_t plundervolt_get_current_undervoltage();
 /**
  * @brief Opens the serial port(s) fd_teensy (and fd_trigger if applicable - see plundervolt_specification_t), throwing the appropriate exceptions.
  * 
- * @param teensy_serial char* const Serial port of the Teensy system
- * @param trigger_serial char* const Serial port for the on-board trigger. Can be anything if !using_dtr.
- * @param teensy_baudrate int Boud rate of the undervolting
- * 
  * @return Error message if initialisation of connection with Teensy failed.
  */
-plundervolt_error_t plundervolt_init_hardware_undervolting(char* const teensy_serial, char* const trigger_serial, int teensy_baudrate);
+plundervolt_error_t plundervolt_init_hardware_undervolting();
 
 /**
  * @brief Read response from Teensy and print it out.
@@ -372,5 +376,4 @@ plundervolt_error_t plundervolt_arm_glitch();
  * @return Error if writing to Teensy failed.
  */
 plundervolt_error_t plundervolt_fire_glitch();
-
 #endif /* PLUNDERVOLT_H */

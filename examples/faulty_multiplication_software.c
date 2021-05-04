@@ -37,7 +37,7 @@ plundervolt_specification_t spec; // This is the specification for the library.
         and it is used to check if the undervolting should stop.
     NOTE: This function does not stop the undervolting, only returns !0 if that is to happen.
 */
-int multiplication_check_software() {
+int multiplication_check() {
     printf("Current undervoltage: %ld\n", plundervolt_get_current_undervoltage());
     uint64_t temp_res_1, temp_res_2;
     int iterations = 0;
@@ -65,7 +65,7 @@ int multiplication_check_software() {
     fault = temp_res_1 != check || temp_res_2 != check;
     if (fault) {
         printf("Fault occured.\nMultiplication 1: %016lx\nMultiplication 2: %016lx\n\
-Original result:  %016lx\n\n", temp_res_1, temp_res_2, check);
+Original result:  %016lx\nundervoltage: %ld mV\n\n", temp_res_1, temp_res_2, check, plundervolt_get_current_undervoltage());
     }
     return fault;
 }
@@ -76,7 +76,7 @@ Original result:  %016lx\n\n", temp_res_1, temp_res_2, check);
         the case. What this function does is up to the user.
 */
 void multiply() {
-    if (multiplication_check_software()) { // This line calls the loop check function.
+    if (multiplication_check()) { // This line calls the loop check function.
         plundervolt_set_loop_finished(); // This line stops the undervolting process.
         go_on = 0; // This is for threads. It stops all loops defined here, which plundervolt_set_loop_finished() doesn't have access to.
     }

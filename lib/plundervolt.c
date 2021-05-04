@@ -54,12 +54,6 @@ void* run_function(void *arguments);
  */
 void* run_function_loop(void *arguments);
 /**
- * @brief Check if u_spec was given in the corect format.
- * 
- * @return plundervolt_error_t PLUNDERVOLT_NO_ERROR if all is OK. If not, return an error code.
- */
-plundervolt_error_t faulty_undervolting_specification();
-/**
  * @brief Check if /dev/cpu/0/msr is accessible.
  * Attemps to open the file and gives feedback if fails.
  * Sets fd.
@@ -75,13 +69,6 @@ plundervolt_error_t msr_accessible_check();
  * @return Whatever the function returns.
  */
 void* run_function_times(int times, void *arguments);
-/**
- * @brief Sends the delay information to Teensy.
- * 
- * @param delay Delay in ms.
- * @return plundervolt_error_t Error code.
- */
-plundervolt_error_t set_delay(int delay);
 
 uint64_t plundervolt_get_current_undervoltage() {
     return current_undervoltage;
@@ -119,7 +106,7 @@ double plundervolt_read_voltage() {
     uint64_t number = 0xFFFF00000000;
     double magic = 8192.0;
     int shift_by = 32;
-    pread(fd_teensy, &msr, sizeof msr, offset);
+    pread(fd, &msr, sizeof msr, offset);
     double res = (double)((msr & number)>>shift_by);
     return res / magic;
 }
@@ -245,7 +232,7 @@ void* plundervolt_apply_undervolting(void *error_maybe) {
 void plundervolt_reset_voltage() {
     if (u_spec.u_type == hardware && u_spec.using_dtr) { // If using_dtr = 0, nothing is to be done.
         ioctl(fd_trigger,TIOCMBIC,&DTR_flag);
-    } else {
+    } else if (u_spec.u_type == software) {
         // Both lines are necessary.
         plundervolt_set_undervolting(plundervolt_compute_msr_value(0, 0));
         plundervolt_set_undervolting(plundervolt_compute_msr_value(0, 2));
@@ -293,14 +280,14 @@ plundervolt_error_t plundervolt_set_specification(plundervolt_specification_t sp
         return PLUNDERVOLT_NOT_INITIALISED_ERROR;
     }
     u_spec = spec;
-    plundervolt_error_t error_check = faulty_undervolting_specification();
+    plundervolt_error_t error_check = plundervolt_faulty_undervolting_specification();
     if (error_check) {
         return error_check;
     }
     return PLUNDERVOLT_NO_ERROR;
 }
 
-plundervolt_error_t faulty_undervolting_specification() {
+plundervolt_error_t plundervolt_faulty_undervolting_specification() {
     if (!initialised) {
         return PLUNDERVOLT_NOT_INITIALISED_ERROR;
     }
@@ -325,14 +312,14 @@ plundervolt_error_t faulty_undervolting_specification() {
     return PLUNDERVOLT_NO_ERROR;
 }
 
-plundervolt_error_t plundervolt_init_hardware_undervolting(char* const teensy_serial, char* const trigger_serial, int teensy_baudrate) {
+plundervolt_error_t plundervolt_init_hardware_undervolting() {
 
     if (!initialised) {
         return PLUNDERVOLT_NOT_INITIALISED_ERROR;
     }
 
     if (u_spec.using_dtr) {
-        fd_trigger = open(trigger_serial, O_RDWR | O_NOCTTY);
+        fd_trigger = open(u_spec.trigger_serial, O_RDWR | O_NOCTTY);
         if(fd_trigger == -1) {
             return PLUNDERVOLT_CONNECTION_INIT_ERROR;
         }
@@ -392,7 +379,7 @@ plundervolt_error_t plundervolt_init_hardware_undervolting(char* const teensy_se
     }
 
     // Open the connection to Teensy
-    fd_teensy = serialport_init(teensy_serial, teensy_baudrate);
+    fd_teensy = serialport_init(u_spec.teensy_serial, u_spec.teensy_baudrate);
     if (fd_teensy == -1) { // Connection failed to open.
         return PLUNDERVOLT_CONNECTION_INIT_ERROR;
     }
@@ -430,22 +417,6 @@ void plundervolt_teensy_read_response() {
     memset(buffer, 0, BUFMAX); // Wipe buffer
     serialport_read_lines(fd_teensy, buffer, EOL, BUFMAX, 10, 3); // Read response
     printf("Teensy response: %s\n", buffer);
-}
-
-plundervolt_error_t set_delay(int delay) {
-    char buf[BUFMAX];
-	memset(buf,0,BUFMAX);  // Wipe buffer
-	sprintf(buf, ("delay %i\n"), delay);
-	printf("Sending: %s", buf);
-	int error_check = serialport_write(fd_teensy, buf); // Wait delay_before_glitch_us useconds.
-	if(error_check == -1) {
-		printf("error writing");
-		return PLUNDERVOLT_WRITE_TO_TEENSY_ERROR;
-	}
-    memset(buf,0,BUFMAX);  // Wipe buffer
-	serialport_read_lines(fd_teensy, buf, EOL, BUFMAX, 10, 2);
-	printf("Teensy response: %s\n", buf);
-    return PLUNDERVOLT_NO_ERROR;
 }
 
 plundervolt_error_t plundervolt_configure_glitch() {
@@ -514,7 +485,7 @@ plundervolt_error_t plundervolt_open_file() {
     if (u_spec.u_type == software) { // Software undervolting
         error_check = msr_accessible_check();
     } else { // Hardware undervolting
-        error_check = plundervolt_init_hardware_undervolting(u_spec.teensy_serial, u_spec.trigger_serial, u_spec.teensy_baudrate);
+        error_check = plundervolt_init_hardware_undervolting();
     }
     return error_check; // May be PLUNDERVOLT_NO_ERROR
 }
@@ -531,7 +502,7 @@ plundervolt_error_t plundervolt_run() {
     }
 
     // Check if specification is of the correct format.
-    error_check = faulty_undervolting_specification();
+    error_check = plundervolt_faulty_undervolting_specification();
     if (error_check) {
         return error_check;
     }
