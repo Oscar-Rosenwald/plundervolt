@@ -1,3 +1,11 @@
+/*
+NOTE:
+The following program producess an error, but some tweeks may be necessary to
+    - the number of iterations in the loop-checking functions (see below)
+    - the start and end voltage of the attack
+    - the operands
+    - the duration of each stage of the attack
+ */
 #include "../lib/plundervolt.h"
 #include <unistd.h>
 #include <stdlib.h>
@@ -84,7 +92,7 @@ void setup() {
     spec.duration_start = 35;
     spec.duration_during = -30;
     spec.start_voltage = 1.05;
-    spec.undervolting_voltage = 0.831; // This value is to be changed. Main() decrements it, until the right voltage is found.
+    spec.undervolting_voltage = 0.821; // This value is to be changed. Main() decrements it, until the right voltage is found.
     spec.end_voltage = spec.start_voltage; // Return to the same voltage as you started.
     spec.tries = 1; // Since we loop ourselves, we don't need more than one try per plundervolt_run() call.
 }

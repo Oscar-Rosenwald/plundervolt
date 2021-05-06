@@ -1,16 +1,3 @@
-/**
- * @file faulty multiplication.c
- * @author your name (you@domain.com)
- * @brief This file is here to illustrate how the plundervolt library outght to be used.
- * It performs a multiplication of two numbers in several threads while:
- * A) lowering the voltage if doing Software undervolting;
- * or B) calling the connected Teensy system to set lower
- * voltage if doing Hardware undervolting,
- * until an error in the multiplication occurs.
- * @version 5.0
- * @date 2021-03-18
- */
-
 /*
 NOTE:
 The following program producess an error, but some tweeks may be necessary to
@@ -23,7 +10,7 @@ The following program producess an error, but some tweeks may be necessary to
 //#define HARDWARE // This will perform Hardware undervolting. Comment the line out is you want Software instead.
 //#define TESTING // This allows us to find the right voltage for the PC.
 #define num_1 0xAE0000
-#define num_2 0xF
+#define num_2 0x18
 #define result num_1 * num_2;
 
 /* This controls if other threads go on.
@@ -78,7 +65,6 @@ Original result:  %016lx\nundervoltage: %ld mV\n\n", temp_res_1, temp_res_2, che
 */
 void multiply() {
     int loop_running = plundervolt_loop_is_running();
-    printf("loop_is_running: %d\n", loop_running);
     if (multiplication_check() || !loop_running) { // This line calls the loop check function.
         plundervolt_set_loop_finished(); // This line stops the undervolting process.
         go_on = 0; // This is for threads. It stops all loops defined here, which plundervolt_set_loop_finished() doesn't have access to.
@@ -91,13 +77,13 @@ void setup() {
                                // This is necessary!
     spec.function = multiply; // Set function to undervolt on.
     spec.integrated_loop_check = 1; // Loop check is integrated
-    spec.threads = 1; // Do not set this too high. The undervolting then happens too quickly
+    spec.threads = 4; // Do not set this too high. The undervolting then happens too quickly
                       // for all the iterations of the multiplication to take place.
     spec.undervolt = 1; // We do not wish to run this function alone, but undervolt in the process.
     spec.loop = 1; // The function is to be called in a loop.
 
     spec.start_undervoltage = -130; // Set initial undervolting.
-    spec.end_undervoltage = -133; // Set maximal undervolting.
+    spec.end_undervoltage = -230; // Set maximal undervolting.
     spec.wait_time = 2000;
     spec.u_type = software; // We want to undervolt softward-wise
 }

@@ -1,3 +1,11 @@
+/**
+ * @file plundervolt.h
+ * @author Cyril Saroch (cxs939@student.bham.ac.uk)
+ * @brief Library for undervolting.
+ * @version 6
+ * @date 2021-05-06
+ * 
+ */
 /* plundervolt.h */
 
 #ifndef PLUNDERVOLT_H
@@ -202,30 +210,6 @@ void plundervolt_set_loop_finished();
  * @return int 0 if no loops are running (e.i., loop_finished is 1), 1 otherwise.
  */
 int plundervolt_loop_is_running();
-
-/* /**
- * @brief When the user wants to debug, they must call this function first.
- * Print statements are placed throughout the code, and the user will see
- * exactly what is happening, which methods are called with what arguments,
- * and what the library is executing.
- * NOTE: Some functions are called in loops, and would cluster the 
- * terminal. Depending on the argument LEVEL, these may only be printed once.
- * 
- * @param level int Controls how much is to be shown:
- * 
- * - 0 ... Don't print anything;
- * 
- * - 1 ... Print most relevant information (such as "now undervolting"). Default;
- * 
- * - 2 ... Print when a function is called, and with what arguments;
- * 
- * - 3 ... Print also when entering and exiting an operation (such as "glitch armed" or "opening connection to msr");
- * 
- * - 4 ... Print a statement on every iteration of every loop. WARNING: This will get messy.
- * 
- * The levels are in a hierarchy. So debug statements of level 0 are shown when level set to 1.
- 
-void plundervolt_debug(int level); */
 
 /**
  * @brief Create a plundervolt_specification_t structure and fill it with default values.

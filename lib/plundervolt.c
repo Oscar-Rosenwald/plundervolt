@@ -1,6 +1,12 @@
 /**
- * @brief Library for undervolting; Version 6 - Documentation
+ * @file plundervolt.c
+ * @author Cyril Saroch (cxs939@student.bham.ac.uk)
+ * @brief Library for undervolting.
+ * @version 6
+ * @date 2021-05-06
+ * 
  */
+
 /* Always compile with "-pthread".
 Always run after "sudo modprobe msr" */
 
@@ -75,7 +81,6 @@ uint64_t plundervolt_get_current_undervoltage() {
 }
 
 void plundervolt_set_loop_finished() {
-    printf("Loop is finished.\n");
     loop_finished = 1;
 }
 
@@ -232,7 +237,6 @@ void* plundervolt_apply_undervolting(void *error_maybe) {
 }
 
 int plundervolt_loop_is_running() {
-    printf("Loop: %d\n", loop_finished);
     return !loop_finished; // Returns the opposite of loop_finished, as it is checking if loop is RUNNING.
 }
 
