@@ -20,10 +20,9 @@ It is important to note a subdirectory of this library - arduino - was lifted fr
 The library operates on two principles:
 
   * A single structure is necessary to provide all parameters.
-	In many cases, a public function (described in [this section](#public-functions)) will ask for the specification again, so that the user may be able to call it with whatever parameters they wish, but a system is in place to make this step automated. Read on for more in [Usage](#usage).
+	In many cases, a public function will ask for the specification again, so that the user may be able to call it with whatever parameters they wish, but a system is in place to make this step automated. Read on for more in [Usage](#usage).
   * The user has access to any and all functions necessary to perform the undervolting, or a larger function with a limited, predefined functionality, which does it for them.
 	In other words, only a limited number of functions is needed to use this library, and this number can be decreased in some cases. Also, every function, which the user may wish to use for greater control over the process, is accessible to them.
-
 
 The user must fill in values of this structure, and subsequently can call all public functions to achieve whatever result they want, or instruct the library to perform the default operation (see [below](#default-operation), over which they have a degree of control as well.
 
@@ -37,6 +36,7 @@ The user must fill in values of this structure, and subsequently can call all pu
 	├── faulty_multiplication_hardware.c	// Usage of hardware undervolting
 ```
 
+
 # Usage #
 
 As stated above, the library gives two levels of control to the user. One is lesser, but easier to work with due to the smaller number of functions the user has to call themselves. The other is simply access to all necessary functions, which the user may call whenever and however they wish.
@@ -49,7 +49,7 @@ First of all, the specification **must** be initialised. Use `plundervolt_init()
 
 Then, the user has access to all variables in this structure, and is free to define them according to their desire.
 
-Afterwards, these changes **must** be saved by called `plundervolt_set_specification()` with the structure as the argument.
+Afterwards, these changes **must** be saved by calling `plundervolt_set_specification()` with the structure as the argument.
 
 Example:
 ```
@@ -59,7 +59,7 @@ plundervolt_set_specification(spec);
 ```
 
 ### Variables ###
-
+	
 #### General ####
 
   * `int loop` Run a user-defined function in loop.
@@ -108,14 +108,18 @@ Other functions are public, so the user may dictate what is happening with great
   * `plundervolt_run()` Run the [default operation](#default-operation).
   * `plundervolt_cleanup()` Close open files. **Must be called** at the end of the program to avoid memory leakage.
   * `plundervolt_print_error()` The library returns a host of error codes. This function prints the appropriate string when passed that error code.
+  * `plundervolt_error2str()` When passed an error code, returns the string to describe it.
   * `plundervolt_reset_voltage()` Reset the voltage to the original value. If software-undervolting, do just that. If hardware-undervolting, reset the pin, i.e. the onboard trigger.
   * `plundervolt_open_file()` Opens appropriate files depending on what type of undervolting (hard-/software) we are using.
+  * `plundervolt_loop_is_running()` Returns 1 if `function` is running in a loop.
+  * `plundervolt_faulty_undervolting_specification()` Checks if the specification is sensible.
 
 ### Software ###
 
   * `plundervolt_compute_msr_value()` Compute the value which will be written to cpu/0/msr.
   * `plundervolt_read_voltage()` Reads the current voltage.
   * `plundervolt_set_undervolting()` Set new undervoltage, i.e. change the current one to a new one.
+  * `plundervolt_software_undervolt()` Perform software undervolting. The argument is the new undervoltage value.
   * `plundervolt_get_current_undervoltage()` Read current undervoltage.
 
 ### Hardware ###
